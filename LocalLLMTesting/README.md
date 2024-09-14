@@ -14,37 +14,58 @@ Program for LLM performance testing for VITALS team
 ![Logo](https://i.ibb.co/KFT7xtJ/model-id.png)
 
 4. Dowload the model locally.
-```ollama pull [MODEL_NAME]```
+   ```c
+   ollama pull [MODEL_NAME]
+   ```
 ### Setup Python Virtual Environment
 With a terminal open in repository,
 
 if on mac/linux use:
-```python3 -m venv llmtesting```
+```c
+python3 -m venv llmtesting
+```
 
 if on windows use:
-```python -m venv llmtesting```
+```c
+python -m venv llmtesting
+```
 ### Activate Virtual Environment
 if on mac/linux use:
-```source llmtesting/bin/activate```
+```c
+source llmtesting/bin/activate
+```
 
 Windows PowerShell(recomended):
-```.\llmtesting\Scripts\activate.ps1```
+```c
+.\llmtesting\Scripts\activate.ps1
+```
 
 Windows CMD:
-```.\llmtesting\Scripts\activate.bat```
+```c
+.\llmtesting\Scripts\activate.bat
+```
 
 CLI should now be prefixed with (llmtesting)
 
-Virtual environment can be deactivated with ```deactivate```
+Virtual environment can be deactivated with
+```c
+deactivate
+```
 ### Install Dependencies
-```pip install ollama inquirer```
+
+```c
+pip install ollama inquirer
+```
 
 ### Running Test Script
 Set your name in config.cfg
 
 Load any images you want to test into ./images directory
 
-Run program using ```python  main.py```
+Run program using 
+```c
+python  main.py
+```
 
 All downloaded models will be available for selection
 
