@@ -2,6 +2,7 @@ import ollama
 import inquirer
 import os
 import configparser
+import requests
 
 config = configparser.ConfigParser()
 config.read('config.cfg')
@@ -107,6 +108,19 @@ for test in answers['model_name']:
         f.write("\n")
         f.close()
     print("Output saved to: " + output_file_path + "\n")
+    print("----------------------------------------------------\n")
+    body = {
+        
+        "apikey": config['USER_SETTINGS']['API_KEY'],
+        "model": test,
+        "prompt": prompt,
+        "image": image_path,
+        "response": res['message']['content'],
+        "time": res['total_duration'] / 1000000000,
+        "score": answers2['score']
+    
+    }
+    res = requests.post('http://localhost:8800/api/tests/', json = body )
     
 
 
