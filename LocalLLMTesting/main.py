@@ -91,30 +91,44 @@ for test in answers['model_name']:
     ),
     ]
     answers2 = inquirer.prompt(questions2)
-    num_output_files = len(os.listdir(output_dir_path))
-    output_file_name = "output_" + str(num_output_files) + ".txt"
-    output_file_path = output_dir_path + output_file_name
-    with open(output_file_path, 'a') as f:
-        f.write("User: " + user_name + "\n")
-        f.write("Model: " + test + "\n")
-        f.write("Prompt: " + prompt + "\n")
-        if answers['use_image']:
-            f.write("Image: " + image_path + "\n")
+    #Deprecated Local File Output
+    # num_output_files = len(os.listdir(output_dir_path))
+    # output_file_name = "output_" + str(num_output_files) + ".txt"
+    # output_file_path = output_dir_path + output_file_name
+    # with open(output_file_path, 'a') as f:
+    #     f.write("User: " + user_name + "\n")
+    #     f.write("Model: " + test + "\n")
+    #     f.write("Prompt: " + prompt + "\n")
+    #     if answers['use_image']:
+    #         f.write("Image: " + image_path + "\n")
+    #     else:
+    #         f.write("Image: None\n")
+    #     f.write("Response: " + res['message']['content'] + "\n")
+    #     f.write("Total time taken: " + str(res['total_duration'] / 1000000000) + " seconds\n")
+    #     f.write("Score: " + answers2['score'] + "\n")
+    #     f.write("\n")
+    #     f.close()
+    # print("Output saved to: " + output_file_path + "\n")
+    # print("----------------------------------------------------\n")
+    if(answers['use_image']):
+        imageCheck = requests.get('http://localhost:8800/api/upload/'+answers['image'])
+        if imageCheck.status_code == 404:
+            with open(image_dir_path + answers['image'], 'rb') as image_file:
+                files = {'image': image_file}
+                response = requests.post('http://localhost:8800/api/upload', files=files)
+            new_image_name = response.json()['filename']
+            os.rename(image_dir_path + answers['image'], image_dir_path + new_image_name)
+        elif imageCheck.status_code == 200:
+            new_image_name = answers['image']
         else:
-            f.write("Image: None\n")
-        f.write("Response: " + res['message']['content'] + "\n")
-        f.write("Total time taken: " + str(res['total_duration'] / 1000000000) + " seconds\n")
-        f.write("Score: " + answers2['score'] + "\n")
-        f.write("\n")
-        f.close()
-    print("Output saved to: " + output_file_path + "\n")
-    print("----------------------------------------------------\n")
+            print("Error: Image upload failed, exiting...")
+            exit()
     body = {
         
         "apikey": config['USER_SETTINGS']['API_KEY'],
         "model": test,
         "prompt": prompt,
-        "image": image_path,
+        "image": new_image_name,
         "response": res['message']['content'],
         "time": res['total_duration'] / 1000000000,
         "score": answers2['score']
