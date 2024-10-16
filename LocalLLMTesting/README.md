@@ -54,7 +54,7 @@ deactivate
 ### Install Dependencies
 
 ```c
-pip install ollama inquirer
+pip install ollama inquirer requests
 ```
 
 ### Running Test Script
