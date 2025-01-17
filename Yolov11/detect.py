@@ -8,11 +8,11 @@ model_path = "yolo11n.pt"  # Change this to the desired model
 # Load the YOLOv11 model
 model = YOLO(model_path)
 if "11n" in model_path:
-    subfolder_name = "yolo11n_run"
+    subfolder_name = "yolo11n"
 elif "11m" in model_path:
-    subfolder_name = "yolo11m_run"
+    subfolder_name = "yolo11m"
 elif "11l" in model_path:
-    subfolder_name = "yolo11l_run"
+    subfolder_name = "yolo11l"
 else:
     subfolder_name = "other_runs"  # Fallback if no match is found
 # Create unique directories for JSON and video files
@@ -46,13 +46,7 @@ try:
         name="",  # Leave empty to avoid creating additional subfolders
         stream=True,  # Enable streaming for real-time processing
     )
-    for result in results:
-        results_cache.append(result)  # Cache results for later processing
-except KeyboardInterrupt:
-    print("Detection stopped by user.")
-finally:
-    print("Processing and saving cached results...")
-    for i, result in enumerate(results_cache):
+    for i, result in enumerate(results):
         detections = []
         for box in result.boxes:  # Iterate over detected objects in the frame
             bbox_coords = [float(coord) for coord in box.xyxy[0].tolist()]  # Bounding box in [x_min, y_min, x_max, y_max] format
@@ -62,17 +56,20 @@ finally:
                 "bbox": bbox_coords                  # Bounding box coordinates
             })
 
-        # Create JSON object for the frame
-        yolo_output = {
-            "frame_id": i,         # Frame index
-            "detections": detections  # List of detections
-        }
+        # Only create a JSON file if there are detections
+        if detections:
+            yolo_output = {
+                "frame_id": i,         # Frame index
+                "detections": detections  # List of detections
+            }
 
-        # Save JSON to a file
-        json_path = json_output_dir / f"yolo_output_frame_{i}.json"
-        with open(json_path, "w") as f:
-            json.dump(yolo_output, f, indent=4)
+            # Save JSON to a file
+            json_path = json_output_dir / f"yolo_output_frame_{i}.json"
+            with open(json_path, "w") as f:
+                json.dump(yolo_output, f, indent=4)
 
-        print(f"Saved YOLO output to {json_path}")
-
-    print("All results processed.")
+            print(f"Saved YOLO output to {json_path}")
+except KeyboardInterrupt:
+    print("Detection stopped by user.")
+finally:
+    print("Detection process completed.")
