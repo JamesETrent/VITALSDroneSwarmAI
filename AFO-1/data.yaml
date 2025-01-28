@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 9
+names: ['0', '1', '2', 'boat', 'bouy', 'human', 'kayak', 'sailboat', 'surfboard']
+
+roboflow:
+  workspace: vitals-s7v4a
+  project: afo-ft1xo-ligmt
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/vitals-s7v4a/afo-ft1xo-ligmt/dataset/1
