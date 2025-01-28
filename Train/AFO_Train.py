@@ -1,4 +1,3 @@
-import os
 from ultralytics import YOLO
 
 # Define the path to the dataset and configuration
@@ -13,7 +12,7 @@ train_results = model.train(
     data=dataset_path,  # Path to the dataset YAML file
     epochs=100,  # Number of training epochs
     imgsz=640,  # Image size for training
-    device="cpu",  # Use 'cpu' since GPU is unavailable
+    device="cpu",  # Device to use for training
     project="runs/train",  # Base folder to save training results
     name="AFO_train"  # Subfolder name for this training session
 )

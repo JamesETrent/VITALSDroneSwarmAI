@@ -3,7 +3,7 @@ val: ../valid/images
 test: ../test/images
 
 nc: 9
-names: ['0', '1', '2', 'boat', 'bouy', 'human', 'kayak', 'sailboat', 'surfboard']
+names: ['car', 'truck', 'bus', 'boat', 'bouy', 'person', 'kayak', 'sailboat', 'surfboard']
 
 roboflow:
   workspace: vitals-s7v4a
