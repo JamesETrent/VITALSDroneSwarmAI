@@ -1,2 +1,4 @@
-In your terminal "pip install ultralytics" 
+pip install ultralytics
+pip install roboflow
+
 run detect.py 
