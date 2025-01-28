@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['person']
+
+roboflow:
+  workspace: vitals-s7v4a
+  project: sard_yolo-vgy5q
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/vitals-s7v4a/sard_yolo-vgy5q/dataset/1
