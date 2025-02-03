@@ -4,6 +4,9 @@
 *.tiff
 *.heic
 *.BMP
+*.png
+*.jpg
+*.jpeg
 *.TIF
 *.TIFF
 *.HEIC
