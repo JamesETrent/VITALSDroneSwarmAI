@@ -9,11 +9,15 @@ class Dispatcher:
         
 
     async def receive_packets(self):
-        """Continuously process all MAVLink packets without blocking."""
+        """Continuously process all MAVLink packets without latency."""
         try:
             while True:
-                msg = self.master.recv_match(blocking=False)  # Non-blocking call
-                if msg:
+                # Process all available messages in one loop
+                while True:
+                    msg = self.master.recv_match(blocking=False)
+                    if not msg:
+                        break  # Exit when no more messages are in the buffer
+
                     drone_id = msg.get_srcSystem()
                     msg_type = msg.get_type()
 
@@ -34,7 +38,8 @@ class Dispatcher:
                         )
                         print(f"Drone {drone_id} telemetry: {msg.roll}, {msg.pitch}, {msg.yaw}")
 
-                await asyncio.sleep(0.01)  # Allow other tasks to run
+                await asyncio.sleep(0.005)
+
 
         except KeyboardInterrupt:
             print("\nStopping Dispatcher...")
