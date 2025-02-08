@@ -4,7 +4,7 @@ import customtkinter
 import tkintermapview
 import ollama
 import ast
-from langChainMain import call_llm
+#from langChainMain import call_llm
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -74,11 +74,11 @@ class ChatSidebar(customtkinter.CTkFrame):
             text="",  # Remove text
             width=20, 
             height=20, 
-            command=self.send_message
+            command= None #self.send_message
         )
         send_button.image = send_icon  # Keep a reference to avoid garbage collection
         send_button.pack(side="right")
-    executor = ThreadPoolExecutor(max_workers=2)
+    #executor = ThreadPoolExecutor(max_workers=2)
 
     
         
@@ -128,8 +128,8 @@ class ChatSidebar(customtkinter.CTkFrame):
                     print(f"Function {tool.function_name} not found")
             
         
-        future= self.executor.submit(call_llm, user_message, polygon_points, drones )
-        future.add_done_callback(on_complete)
+        #future= self.executor.submit(call_llm, user_message, polygon_points, drones )
+        #future.add_done_callback(on_complete)
         
 
         # response = call_llm(user_message, polygon_points, [  {"id": "drone_001", "battery": 80, "lat": 28.6036612, "lon": -81.2014693},
