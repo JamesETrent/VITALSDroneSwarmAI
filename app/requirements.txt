@@ -1,0 +1,4 @@
+mavutil
+ollama
+customtkinter
+customtkinter

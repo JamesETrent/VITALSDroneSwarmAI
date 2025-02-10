@@ -53,6 +53,10 @@ class Drone:
         self.roll = roll
         self.pitch = pitch
         self.yaw = yaw
+    
+    def setStatus(self, system_status):
+        self.system_status = system_status
+        self.info_widget.updateStatus(system_status)
 
         
 
@@ -198,6 +202,25 @@ class DroneInfoBox(customtkinter.CTkFrame):
         self.position_label.configure(text=f"Position: {position}")
         self.altitude_label.configure(text=f"Altitude: {altitude / 1000} m")
         self.velocity_label.configure(text=f"Velocity: {velocity}")
+    
+    def updateStatus(self, status):
+        
+        if status == 0:
+            self.status_label.configure(text="UnInit", fg_color="gray")
+        elif status == 1:
+            self.status_label.configure(text="Boot", fg_color="gray")
+        elif status == 2:
+            self.status_label.configure(text="Calibrating", fg_color="yellow")
+        elif status == 3:
+            self.status_label.configure(text="Standby", fg_color="orange")
+        elif status == 4:
+            self.status_label.configure(text="Active", fg_color="green")
+        elif status == 5:
+            self.status_label.configure(text="Critical", fg_color="red")
+        elif status == 6:
+            self.status_label.configure(text="Emergency", fg_color="red")
+        else:
+            self.status_label.configure(text="Unknown", fg_color="gray")
 
 
 
@@ -402,6 +425,10 @@ class GUI:
             drone.setTelemetry(roll, pitch, yaw)
     def addDrone(self, drone_id, system_status):
         self.map_page._add_drone(drone_id, system_status)
+    def updateDroneStatus(self, drone_id, system_status):
+        drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
+        if drone is not None:
+            drone.setStatus(system_status)
 
 
 if __name__ == "__main__":

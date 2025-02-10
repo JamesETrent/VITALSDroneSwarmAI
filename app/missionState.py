@@ -40,6 +40,7 @@ class Drone:
         self.missionState.gui.updateDroneTelemetry(self.drone_id, roll, pitch, yaw)
     def updateStatus(self, system_status):
         self.system_status = system_status
+        self.missionState.gui.updateDroneStatus(self.drone_id, system_status)
     
 
 
@@ -81,6 +82,7 @@ class missionState:
 
     def addMissionPolygon(self, polygon):
         self.missionPolygon = polygon
+
     def updateDroneStatus(self, drone_id, system_status):
         # check if drone exists yet 
         drone = next((d for d in self.drones if d.drone_id == drone_id), None)
