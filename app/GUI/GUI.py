@@ -45,6 +45,7 @@ class Drone:
             self.marker.set_position(converted_lat, converted_lon)
         # calculate velocity
         velocity = math.hypot(vx, vy)
+        velocity = velocity * 0.01 # convert cm/s to m/s
         # update info widget
         self.info_widget.updatePos(self.position, self.altitude, velocity)
         
@@ -121,17 +122,12 @@ class ChatSidebar(customtkinter.CTkFrame):
         send_button.pack(side="right")
     #executor = ThreadPoolExecutor(max_workers=2)
 
-    
-        
-
     def _load_icon(self, path):
         """Load and resize an icon."""
         image = PIL.Image.open(path)
         image = image.resize((20, 20))  # Resize the icon
         return customtkinter.CTkImage(image)
     
-
-
     def send_message(self):
         
         # Get user input
@@ -172,8 +168,7 @@ class ChatSidebar(customtkinter.CTkFrame):
         #future= self.executor.submit(call_llm, user_message, polygon_points, drones )
         #future.add_done_callback(on_complete)
         
-    
-    
+
 class DroneInfoBox(customtkinter.CTkFrame):
     def __init__(self, parent, id, row=1):
         # Create the drone info frame
@@ -223,13 +218,10 @@ class DroneInfoBox(customtkinter.CTkFrame):
             self.status_label.configure(text="Unknown", fg_color="gray")
 
 
-
-
-
 class MapPage(customtkinter.CTkFrame):
-    def __init__(self, parent, switch_to_home, **kwargs):
+    def __init__(self, parent, switch_to_home, gui_ref, **kwargs):
         super().__init__(parent, **kwargs)
-
+        self.gui_ref = gui_ref
         self.switch_to_home = switch_to_home
         self.polygons = []
         self.drones = []
@@ -237,7 +229,7 @@ class MapPage(customtkinter.CTkFrame):
         self.jobs = []
         self.first_polygon_point = False
         self.editing_polygon = False
-
+        
         # Left sidebar
         self.sidebar = customtkinter.CTkFrame(self)
         self.sidebar.grid(row=0, column=0, sticky="nsw")
@@ -262,7 +254,7 @@ class MapPage(customtkinter.CTkFrame):
         self.checkbox.grid(row=3, column=0, pady=10, padx=20, sticky="w")
 
         self.create_job_button = customtkinter.CTkButton(
-        self.sidebar, text="Create Test Job", command=self.create_test_job
+        self.sidebar, text="Connect to Mavlink", command=self.gui_ref.call_mavlink_connection
         )
         self.create_job_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
         # drone info container
@@ -270,10 +262,6 @@ class MapPage(customtkinter.CTkFrame):
         self.drone_info_container.grid(row=5, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
         self.drone_info_Label = customtkinter.CTkLabel(self.drone_info_container, text="Drones", font=("Arial", 20))
         self.drone_info_Label.grid(row=0, column=0, pady=10, padx=20, sticky="nsew")
-
-        # Add a test drone
-
-
 
         # Map frame
         self.map_frame = customtkinter.CTkFrame(self)
@@ -300,11 +288,6 @@ class MapPage(customtkinter.CTkFrame):
         # Grid configuration
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
-
-        # Add drone
-
-        
-
 
 
     def _add_drone(self, drone_id, system_status):
@@ -344,6 +327,7 @@ class MapPage(customtkinter.CTkFrame):
             self.start_polygon_button.configure(text="Mission Area Created")
             self.start_polygon_button.configure(state="disabled")
             self.polygon.name = "Mission Area"
+            self.gui_ref.sendMissionPolygon(self.polygon_points)
             print(self.polygon_points)
         else:
             self.first_polygon_point = True
@@ -369,7 +353,7 @@ class MapPage(customtkinter.CTkFrame):
 
 
 class HomePage(customtkinter.CTkFrame):
-    def __init__(self, parent, switch_to_map, **kwargs):
+    def __init__(self, parent, switch_to_map, gui_ref, **kwargs):
         super().__init__(parent, **kwargs)
 
         self.switch_to_map = switch_to_map
@@ -398,8 +382,8 @@ class GUI:
         self.container.pack(fill="both", expand=True)
 
         # Create pages
-        self.home_page = HomePage(self.container, self.show_map_page)
-        self.map_page = MapPage(self.container, self.show_home_page)
+        self.home_page = HomePage(self.container, self.show_map_page, self)
+        self.map_page = MapPage(self.container, self.show_home_page, self)
 
         # Show the home page initially
         self.home_page.pack(fill="both", expand=True)
@@ -415,8 +399,19 @@ class GUI:
     def run(self):
         self.app.mainloop()
 
+    def link_mission_state(self, missionState):
+        self.missionState = missionState
+
+    def call_mavlink_connection(self):
+        self.missionState.connect_to_mavlink()
+    
+
     def get_polygon_points(self):
         return self.map_page.get_polygon_points()
+    
+    def sendMissionPolygon(self, polygon_points):
+        self.missionState.addMissionPolygon(polygon_points)
+
     
     def updateDronePosition(self, drone_id, lat, lon, altitude, relative_altitude, heading, vx, vy, vz):
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)

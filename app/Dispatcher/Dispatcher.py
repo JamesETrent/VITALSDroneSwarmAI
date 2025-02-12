@@ -4,12 +4,27 @@ import asyncio
 
 class Dispatcher:
     def __init__(self, missionState):
-        self.master = mavutil.mavlink_connection('tcp:127.0.0.1:14550', mavlink_version="2.0")
+        self.master = None
         self.missionState = missionState
         
+    def connect(self):
+        try:
+            self.master = mavutil.mavlink_connection('tcp:127.0.0.1:14550', mavlink_version="2.0")
+            self.master.wait_heartbeat()
+            print("Connected to MAVLink")
+            return True
+        except Exception as e:
+            print(f"Error connecting to MAVLink: {e}")
+            self.master = None
+            return False
+    
 
     async def receive_packets(self):
         """Continuously process all MAVLink packets without latency."""
+        if not self.master:
+            print("No MAVLink connection established.")
+            return
+
         try:
             while True:
                 # Process all available messages in one loop

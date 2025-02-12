@@ -49,14 +49,23 @@ class missionState:
     def __init__(self, gui):
         self.drones = []
         self.missionPolygon = None
-
+        self.mavLinkConnected = False
         self.gui = gui
 
         self.loop = asyncio.new_event_loop()
         self.dispatcher = Dispatcher.Dispatcher(self)
-        self.dispatcherThread = threading.Thread(target=self.run_asyncio_loop, daemon=True)
-        self.dispatcherThread.start()
-
+        
+        
+    def connect_to_mavlink(self):
+        success = self.dispatcher.connect()
+        if success:
+            self.dispatcherThread = threading.Thread(target=self.run_asyncio_loop, daemon=True)
+            self.dispatcherThread.start()
+            self.mavLinkConnected = True
+            print("Connected to MAVLink")
+        else:
+            print("Failed to connect to MAVLink")
+            self.mavLinkConnected = False
 
     
     def run_asyncio_loop(self):
@@ -78,10 +87,12 @@ class missionState:
         drone = next((d for d in self.drones if d.drone_id == drone_id), None)
         if drone is not None:
             drone.updateTelemetry(roll, pitch, yaw)
-        
 
     def addMissionPolygon(self, polygon):
         self.missionPolygon = polygon
+
+    def getMissionPolygon(self):
+        return self.missionPolygon
 
     def updateDroneStatus(self, drone_id, system_status):
         # check if drone exists yet 
@@ -97,6 +108,7 @@ class missionState:
 if __name__ == "__main__":
     gui = GUI.GUI()
     missionState = missionState(gui)
+    gui.link_mission_state(missionState)
     gui.run()
     
 
