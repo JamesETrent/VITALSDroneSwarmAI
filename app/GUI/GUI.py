@@ -414,6 +414,9 @@ class GUI:
 
     def run(self):
         self.app.mainloop()
+
+    def get_polygon_points(self):
+        return self.map_page.get_polygon_points()
     
     def updateDronePosition(self, drone_id, lat, lon, altitude, relative_altitude, heading, vx, vy, vz):
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
