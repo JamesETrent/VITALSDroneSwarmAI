@@ -104,6 +104,9 @@ class missionState:
     
     def getDrones(self):
         return self.drones
+
+    def clear_mission(self, drone_id):
+        self.dispatcher.clear_mission(drone_id)
     
 if __name__ == "__main__":
     gui = GUI.GUI()
