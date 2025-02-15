@@ -2,6 +2,8 @@ from GUI import GUI
 from Dispatcher import Dispatcher
 import asyncio
 import threading
+from TerrainPreProcessing.terrain_queries import create_search_area
+from TerrainPreProcessing.visualization import plot_search_area
 
 class Drone:
     drone_id = None
@@ -89,6 +91,12 @@ class missionState:
             drone.updateTelemetry(roll, pitch, yaw)
 
     def addMissionPolygon(self, polygon):
+        print("Gotcha!")
+        print(polygon)
+        rtree, grid = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
+        plot_search_area(rtree,grid, polygon)
+        self.missionGrid = grid
+        self.rtree = rtree
         self.missionPolygon = polygon
 
     def getMissionPolygon(self):
