@@ -257,9 +257,14 @@ class MapPage(customtkinter.CTkFrame):
         self.sidebar, text="Connect to Mavlink", command=self.gui_ref.call_mavlink_connection
         )
         self.create_job_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
+
+        self.create_job_button = customtkinter.CTkButton(
+        self.sidebar, text="Clear Mission 1", command=self.gui_ref.call_clear_mission
+        )
+        self.create_job_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
         # drone info container
         self.drone_info_container = customtkinter.CTkFrame(self.sidebar)
-        self.drone_info_container.grid(row=5, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
+        self.drone_info_container.grid(row=6, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
         self.drone_info_Label = customtkinter.CTkLabel(self.drone_info_container, text="Drones", font=("Arial", 20))
         self.drone_info_Label.grid(row=0, column=0, pady=10, padx=20, sticky="nsew")
 
@@ -405,7 +410,6 @@ class GUI:
     def call_mavlink_connection(self):
         self.missionState.connect_to_mavlink()
     
-
     def get_polygon_points(self):
         return self.map_page.get_polygon_points()
     
@@ -427,6 +431,9 @@ class GUI:
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
         if drone is not None:
             drone.setStatus(system_status)
+    
+    def call_clear_mission(self):
+        self.missionState.clear_mission(2)
 
 
 if __name__ == "__main__":

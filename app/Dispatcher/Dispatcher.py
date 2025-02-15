@@ -38,20 +38,24 @@ class Dispatcher:
 
                     if msg_type == "HEARTBEAT":
                         self.missionState.updateDroneStatus(drone_id, msg.system_status)
-                        print(f"Drone {drone_id} status: {msg.system_status}")
+                        #print(f"Drone {drone_id} status: {msg.system_status}")
 
                     elif msg_type == "GLOBAL_POSITION_INT":
                         self.missionState.updateDronePosition(
                             drone_id, msg.lat, msg.lon, msg.alt, msg.relative_alt,
                             msg.hdg, msg.vx, msg.vy, msg.vz
                         )
-                        print(f"Drone {drone_id} position: {msg.lat}, {msg.lon}, {msg.alt}")
+                        #print(f"Drone {drone_id} position: {msg.lat}, {msg.lon}, {msg.alt}")
 
                     elif msg_type == "ATTITUDE":
                         self.missionState.updateDroneTelemetry(
                             drone_id, msg.roll, msg.pitch, msg.yaw
                         )
-                        print(f"Drone {drone_id} telemetry: {msg.roll}, {msg.pitch}, {msg.yaw}")
+                        #print(f"Drone {drone_id} telemetry: {msg.roll}, {msg.pitch}, {msg.yaw}")
+                    
+                    elif msg_type == "MISSION_COUNT":
+                        #self.missionState.updateDroneMissionCount(drone_id, msg.count)
+                        print(f"Drone {drone_id} mission count: {msg.count}")
 
                 await asyncio.sleep(0.005)
 
@@ -61,33 +65,11 @@ class Dispatcher:
         finally:
             self.master.close()
 
+    def clear_mission(self, drone_id):
+        self.master.target_system = drone_id
+        self.master.waypoint_clear_all_send()
+
+
 if __name__ == "__main__":
     dispatcher = Dispatcher()
     dispatcher.recieve_packets()
-
-
-
-# master = mavutil.mavlink_connection('tcp:127.0.0.1:14550')
-# try:
-#     while True:
-#         msg = master.recv_match(blocking=True, type='HEARTBEAT')
-        
-#         if msg:
-#             print(msg.get_srcSystem())
-#             print(msg)
-#         msg = master.recv_match(blocking=True, type='GLOBAL_POSITION_INT')
-        
-#         if msg:
-#             print(msg.get_srcSystem())
-#             print(msg)
-#         msg = master.recv_match(blocking=True, type='ATTITUDE')
-        
-#         if msg:
-#             print(msg.get_srcSystem())
-#             print(msg)
-# except KeyboardInterrupt:
-#     print("\nStopping...")
-# finally:
-#     master.close()
-
-
