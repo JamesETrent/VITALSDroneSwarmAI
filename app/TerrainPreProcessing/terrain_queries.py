@@ -22,30 +22,49 @@ def get_features(rtree_index, useOSMNX: bool, osmnx_points, postGIS_points, sear
         if not has_internet():
             useOSMNX = False
             print("No Internet! Attempting to use PostGIS database")
-        if useOSMNX:
-            #Will cause an error if nothing is gotten from it!
-            #osmnx._errors.InsufficientResponseError: No matching features. Check query location, tags, and log.
-            results = ox.features_from_bbox(osmnx_points,search_tags)
-            results.plot()
-            print(len(results))
-            osmnx_load_rtree(rtree_index,search_tags, results)
-            return True
 
+        if useOSMNX:
+            try:
+                results = ox.features_from_bbox(osmnx_points, search_tags)
+
+                # Check if results are empty and handle the case
+                if results is None or results.empty:
+                    print("OSMnx returned no features. Skipping OSMnx processing.")
+                    return False  # Prevents crash and allows fallback to PostGIS
+
+                results.plot()
+                print(f"Loaded {len(results)} features into R-tree.")
+                osmnx_load_rtree(rtree_index, search_tags, results)
+                return True
+
+            except ox._errors.InsufficientResponseError:
+                print("OSMnx query returned no features. Area might be too small.")
+                return False  # Prevents crash and allows fallback to PostGIS
+
+            except Exception as e:
+                print(f"Unexpected OSMnx Error: {e}")
+                return False  # Prevents any unexpected crashes
+
+    # Handle PostGIS in the same way
     if not useOSMNX:
         print("Getting information from PostGIS database")
-        info =  query_osm_features(search_tags, postGIS_points)
-        
-        #Failed to get information from the POSTGIS database, we screwed. 
-        if info is None:
-            return False
-        if info:
+        try:
+            info = query_osm_features(search_tags, postGIS_points)
+
+            if info is None or not info:
+                print("PostGIS returned no features. Skipping PostGIS processing.")
+                return False  # No data from PostGIS either
+
             plot_postGIS_data(info)
-        print(len(info))
-        postgis_load_rtree(rtree_index, info)
+            print(f"Loaded {len(info)} features into R-tree from PostGIS.")
+            postgis_load_rtree(rtree_index, info)
+            return True
 
+        except Exception as e:
+            print(f"Unexpected PostGIS Error: {e}")
+            return False  # Prevents any unexpected crashes
 
-    #Should return False if no internet, and failed to connect to the POSTGIS database.
-    return True
+    return True  # Ensures function exits gracefully
     
 
 

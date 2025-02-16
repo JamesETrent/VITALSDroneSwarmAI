@@ -34,6 +34,10 @@ def plot_postGIS_data(data, colors = []):
     ax.set_title("Blended Colors for Mixed Categories")
 
 def plot_search_area(rtree_index, grid, polygon_points):
+    if not rtree_index:
+        print("Failed! Area probably too small!")
+        return
+        
     all_items = list(rtree_index.intersection(rtree_index.bounds, objects=True))
     preserved_polygons = []
     for r in all_items:
