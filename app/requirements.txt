@@ -2,3 +2,7 @@ mavutil
 ollama
 tkintermapview
 customtkinter
+osmnx
+matplotlib
+sqlalchemy
+geoalchemy2

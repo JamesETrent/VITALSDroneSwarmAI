@@ -44,6 +44,21 @@ class Drone:
         self.system_status = system_status
         self.missionState.gui.updateDroneStatus(self.drone_id, system_status)
     
+class Job:
+    def __init__(self, job_id, job_type, job_status, waypoints, missionState, drone_id):
+        self.missionState = missionState
+        self.drone_id = drone_id
+        self.job_id = job_id
+        self.job_type = job_type
+        self.job_status = job_status
+        self.waypoints = waypoints
+        self.last_waypoint = 0
+    
+    def deployJob(self):
+        self.job_status = "deployed"
+        if self.job_type == "INVESTIGATE_POI":
+            self.last_waypoint = 0
+            self.missionState.send_poi_investigate(self.drone_id, self.waypoints[0])
 
 
 class missionState:
@@ -53,9 +68,10 @@ class missionState:
         self.missionPolygon = None
         self.mavLinkConnected = False
         self.gui = gui
-
         self.loop = asyncio.new_event_loop()
         self.dispatcher = Dispatcher.Dispatcher(self)
+        # TEST VALUES
+        self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 0) , (28.6004825, -81.1942729, 10, 0)]
         
         
     def connect_to_mavlink(self):
@@ -112,9 +128,25 @@ class missionState:
     
     def getDrones(self):
         return self.drones
+    
+    def get_drone(self, drone_id):
+        return next((d for d in self.drones if d.drone_id == drone_id), None)
 
-    def clear_mission(self, drone_id):
-        self.dispatcher.clear_mission(drone_id)
+    def arm_mission(self, drone_id):
+        self.dispatcher.arm_drone(drone_id)
+    
+    def takeoff_mission(self, drone_id):
+        self.dispatcher.takeoff_drone(drone_id)
+    
+    def send_waypoints(self, drone_id):
+        self.dispatcher.send_mission(drone_id, self.mission_waypoints)
+    
+    def return_to_launch(self, drone_id):
+        self.dispatcher.return_to_launch(drone_id)
+    
+    def send_poi_investigate(self, drone_id, waypoint):
+        self.dispatcher.send_poi_investigate(drone_id, waypoint)
+        
     
 if __name__ == "__main__":
     gui = GUI.GUI()

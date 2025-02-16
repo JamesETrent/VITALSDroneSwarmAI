@@ -40,7 +40,7 @@ class Drone:
         self.vz = vz
         # set marker on map
         if self.marker is None:
-            self.marker = self.map_widget.set_marker(converted_lat, converted_lon, text=self.id, icon=self._load_icon("./assets/camera-drone.png"))
+            self.marker = self.map_widget.set_marker(converted_lat, converted_lon, icon_anchor ="center", text=self.id, icon=self._load_icon("./assets/camera-drone.png"))
         else:
             self.marker.set_position(converted_lat, converted_lon)
         # calculate velocity
@@ -232,7 +232,7 @@ class MapPage(customtkinter.CTkFrame):
         
         # Left sidebar
         self.sidebar = customtkinter.CTkFrame(self)
-        self.sidebar.grid(row=0, column=0, sticky="nsw")
+        self.sidebar.grid(row=0, column=0, sticky="nsw", rowspan=2)
         self.sidebar.grid_columnconfigure(0, weight=1)
 
         sidebar_title = customtkinter.CTkLabel(
@@ -253,32 +253,55 @@ class MapPage(customtkinter.CTkFrame):
         self.checkbox = customtkinter.CTkCheckBox(self.sidebar, text="Show Mission Area")
         self.checkbox.grid(row=3, column=0, pady=10, padx=20, sticky="w")
 
-        self.create_job_button = customtkinter.CTkButton(
+        self.connect_button = customtkinter.CTkButton(
         self.sidebar, text="Connect to Mavlink", command=self.gui_ref.call_mavlink_connection
         )
-        self.create_job_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
+        self.connect_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
 
-        self.create_job_button = customtkinter.CTkButton(
-        self.sidebar, text="Clear Mission 1", command=self.gui_ref.call_clear_mission
+        self.arm_button = customtkinter.CTkButton(
+        self.sidebar, text="ARM DRONE 1", command=self.gui_ref.call_arm_mission
         )
-        self.create_job_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
+        self.arm_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
+
+        self.takeoff_button = customtkinter.CTkButton(
+        self.sidebar, text="TAKEOFF DRONE 1", command=self.gui_ref.call_takeoff_mission
+        )
+        self.takeoff_button.grid(row=6, column=0, pady=10, padx=20, sticky="w")
+        self.send_waypoints_button = customtkinter.CTkButton(
+        self.sidebar, text="SEND WAYPOINTS DRONE 1", command=self.gui_ref.call_send_waypoints
+        )
+        self.send_waypoints_button.grid(row=7, column=0, pady=10, padx=20, sticky="w")
+        self.return_to_launch_button = customtkinter.CTkButton(
+        self.sidebar, text="RETURN TO LAUNCH DRONE 1", command=self.gui_ref.call_return_to_launch
+        )
+        self.return_to_launch_button.grid(row=8, column=0, pady=10, padx=20, sticky="w")
+
         # drone info container
         self.drone_info_container = customtkinter.CTkFrame(self.sidebar)
-        self.drone_info_container.grid(row=6, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
+        self.drone_info_container.grid(row=9, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
         self.drone_info_Label = customtkinter.CTkLabel(self.drone_info_container, text="Drones", font=("Arial", 20))
         self.drone_info_Label.grid(row=0, column=0, pady=10, padx=20, sticky="nsew")
 
         # Map frame
         self.map_frame = customtkinter.CTkFrame(self)
-        self.map_frame.grid(row=0, column=1, sticky="nsew")
+        self.map_frame.grid(row=0, column=1, sticky="nsew", rowspan=2)
 
         self.map_widget = tkintermapview.TkinterMapView(
-            self.map_frame, width=600, height=400, corner_radius=20
+            self.map_frame, width=600, height=600, corner_radius=20
         )
-        self.map_widget.pack(fill="both", expand=True, padx=20, pady=20)
+        self.map_widget.pack(fill="both", expand=False, padx=20, pady=20)
         self.map_widget.set_position(28.6026251, -81.1999887)
         self.map_widget.add_left_click_map_command(self.left_click_event)
 
+        #bottom frame
+        self.bottom_frame = customtkinter.CTkFrame(self)
+        self.bottom_frame.grid(row=1, column=1, sticky="nsew")
+
+        bottom_label = customtkinter.CTkLabel(self.bottom_frame, text="Job Queues", font=("Arial", 18))
+        bottom_label.pack(pady=20)
+
+        #RightClick Menu
+        self.map_widget.add_right_click_menu_command(label="Add Job Waypoint", command=self.gui_ref.add_job_waypoint, pass_coords=True)
 
         # Collapsible right sidebar
         self.collapsible_sidebar = ChatSidebar(self)
@@ -375,6 +398,12 @@ class HomePage(customtkinter.CTkFrame):
         switch_button.pack(pady=10)
         mission_review_button.pack(pady=10)
 
+class JobWaypoint:
+    def __init__(self, lat, lon, waypointNum, map_widget):
+        self.lat = lat
+        self.lon = lon
+        self.marker = map_widget.set_marker(lat, lon, text=waypointNum)
+
 
 class GUI:
     def __init__(self):
@@ -386,12 +415,16 @@ class GUI:
         self.container = customtkinter.CTkFrame(self.app)
         self.container.pack(fill="both", expand=True)
 
+        self.currentJobWaypoints = []
+        self.currentJobPath = None
+
         # Create pages
         self.home_page = HomePage(self.container, self.show_map_page, self)
         self.map_page = MapPage(self.container, self.show_home_page, self)
 
         # Show the home page initially
         self.home_page.pack(fill="both", expand=True)
+
 
     def show_home_page(self):
         self.map_page.pack_forget()
@@ -432,8 +465,37 @@ class GUI:
         if drone is not None:
             drone.setStatus(system_status)
     
-    def call_clear_mission(self):
-        self.missionState.clear_mission(2)
+    def call_takeoff_mission(self):
+        self.missionState.takeoff_mission(1)
+    
+    def call_arm_mission(self):
+        self.missionState.arm_mission(1)
+    
+    def call_send_waypoints(self):
+        self.missionState.send_waypoints(1)
+    
+    def call_return_to_launch(self):
+        self.missionState.return_to_launch(3)
+    
+    def add_job_waypoint(self, coords):
+        if len(self.currentJobWaypoints) == 0:
+            self.map_page.map_widget.add_right_click_menu_command(label="Finish Job", command=self.finish_creating_job)
+        waypointNum = len(self.currentJobWaypoints) + 1
+        waypoint = JobWaypoint(coords[0], coords[1], waypointNum, self.map_page.map_widget)
+        self.currentJobWaypoints.append(waypoint)
+        if len(self.currentJobWaypoints) >= 2:
+            self.map_page.map_widget.delete_all_path()
+            positions = []
+            for waypoint in self.currentJobWaypoints:
+                positions.append((waypoint.lat, waypoint.lon))
+            path = self.map_page.map_widget.set_path(position_list = positions, width=5, color="red")
+
+    def finish_creating_job(self):
+        pass
+    
+    
+
+    
 
 
 if __name__ == "__main__":
