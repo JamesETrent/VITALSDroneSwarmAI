@@ -2,19 +2,32 @@ from ultralytics import YOLO
 import json
 from pathlib import Path
 
-# Specify the model path (either yolo11n.pt or yolo11l.pt)
-model_path = "yolo11n.pt"  # Change this to the desired model
+# Specify the model path (either yolov11Custom.pt or rf3.pt)
+model_path = "yolov11Custom.pt"  # Change this to the desired model 
 
 # Load the YOLOv11 model
 model = YOLO(model_path)
+
+# Extract the model's label mapping
+custom_labels = model.names  # This pulls the correct labels from the model
+
+# Debug: Print the actual labels used by your model
+print("Loaded Labels:", custom_labels)
+
+# Define subfolder name based on model type
 if "11n" in model_path:
     subfolder_name = "yolo11n"
 elif "11m" in model_path:
     subfolder_name = "yolo11m"
 elif "11l" in model_path:
     subfolder_name = "yolo11l"
+elif "llC" in model_path:
+    subfolder_name = "yolov11Custom"
+elif "rf3" in model_path:
+    subfolder_name = "rf3"
 else:
     subfolder_name = "other_runs"  # Fallback if no match is found
+
 # Create unique directories for JSON and video files
 base_json_dir = Path("runs/") / subfolder_name / "jsonfile"
 base_video_dir = Path("runs/") / subfolder_name / "videorun"
@@ -39,27 +52,33 @@ try:
         source=0,  # Webcam index
         imgsz=640,
         device="cpu",  # Use 'cuda' if your GPU is supported
-        conf=0.5,  # Confidence threshold
+        conf=0.4,  # Confidence threshold
         show=True,  # Display results
         save=True,  # Save results
         project=str(video_output_dir),  # Save video in videorun folder
         name="",  # Leave empty to avoid creating additional subfolders
         stream=True,  # Enable streaming for real-time processing
     )
+
     for i, result in enumerate(results):
         detections = []
         for box in result.boxes:  # Iterate over detected objects in the frame
             bbox_coords = [float(coord) for coord in box.xyxy[0].tolist()]  # Bounding box in [x_min, y_min, x_max, y_max] format
+            label_index = int(box.cls)  # Get the detected class index
+
+            # Ensure the correct label is used from the model
+            label_name = custom_labels[label_index] if label_index < len(custom_labels) else "Unknown"
+
             detections.append({
-                "label": result.names[int(box.cls)],  # Object label
-                "confidence": float(box.conf),       # Confidence score
-                "bbox": bbox_coords                  # Bounding box coordinates
+                "label": label_name,  # Correct label from model
+                "confidence": float(box.conf),  # Confidence score
+                "bbox": bbox_coords  # Bounding box coordinates
             })
 
         # Only create a JSON file if there are detections
         if detections:
             yolo_output = {
-                "frame_id": i,         # Frame index
+                "frame_id": i,  # Frame index
                 "detections": detections  # List of detections
             }
 
@@ -69,6 +88,7 @@ try:
                 json.dump(yolo_output, f, indent=4)
 
             print(f"Saved YOLO output to {json_path}")
+
 except KeyboardInterrupt:
     print("Detection stopped by user.")
 finally:
