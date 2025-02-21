@@ -18,6 +18,7 @@ class Drone:
         self.system_status = system_status
         self.position = None
         self.marker = None
+        self.heading_path = None
         self.altitude = None
         self.relative_altitude = None
         self.heading = None
@@ -34,20 +35,33 @@ class Drone:
         self.position = (converted_lat, converted_lon)
         self.altitude = altitude
         self.relative_altitude = relative_altitude
-        self.heading = heading
+        converted_heading = heading/1e2
         self.vx = vx
         self.vy = vy
         self.vz = vz
         # set marker on map
         if self.marker is None:
-            self.marker = self.map_widget.set_marker(converted_lat, converted_lon, icon_anchor ="center", text=self.id, icon=self._load_icon("./assets/camera-drone.png"))
+            self.marker = self.map_widget.set_marker(converted_lat, converted_lon, icon_anchor ="center", text=f"Drone {self.id}", icon=self._load_icon("./assets/camera-drone.png"), font = ("Arial", 12, "bold"))
         else:
             self.marker.set_position(converted_lat, converted_lon)
+        
+        # create heading path on map
+        #calculate 10m point based on heading
+        heading_rad = math.radians(converted_heading)
+        lat_offset = 0.0005 * math.cos(heading_rad)
+        lon_offset = 0.0005 * math.sin(heading_rad)
+        if self.heading_path is not None:
+            self.heading_path.delete()
+            self.heading_path = None
+        self.heading_path = self.map_widget.set_path(position_list = [(converted_lat, converted_lon), (converted_lat + lat_offset, converted_lon + lon_offset)], width=2, color="red")
+
+            
+
         # calculate velocity
         velocity = math.hypot(vx, vy)
         velocity = velocity * 0.01 # convert cm/s to m/s
         # update info widget
-        self.info_widget.updatePos(self.position, self.altitude, velocity)
+        self.info_widget.updatePos(self.position, self.relative_altitude, velocity, converted_heading)
         
 
     def setTelemetry(self, roll, pitch, yaw):
@@ -192,11 +206,15 @@ class DroneInfoBox(customtkinter.CTkFrame):
 
         self.velocity_label = customtkinter.CTkLabel(self.drone_info, text="Velocity: Unknown", font=("Arial", 10), fg_color="#337ab7",)
         self.velocity_label.grid(row=3, column=0, columnspan=2, sticky="w", padx=5)
+
+        self.heading_label = customtkinter.CTkLabel(self.drone_info, text="Heading: Unknown", font=("Arial", 10), fg_color="#337ab7",)
+        self.heading_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=5)
     
-    def updatePos(self, position, altitude, velocity):
+    def updatePos(self, position, altitude, velocity, heading):
         self.position_label.configure(text=f"Position: {position}")
         self.altitude_label.configure(text=f"Altitude: {altitude / 1000} m")
         self.velocity_label.configure(text=f"Velocity: {velocity}")
+        self.heading_label.configure(text=f"Heading: {heading}")
     
     def updateStatus(self, status):
         
@@ -229,6 +247,7 @@ class MapPage(customtkinter.CTkFrame):
         self.jobs = []
         self.first_polygon_point = False
         self.editing_polygon = False
+        self.debug_window = None
         
         # Left sidebar
         self.sidebar = customtkinter.CTkFrame(self)
@@ -240,45 +259,53 @@ class MapPage(customtkinter.CTkFrame):
         )
         sidebar_title.grid(row=0, column=0, pady=10, padx=20, sticky="w")
 
-        move_drone_test_button = customtkinter.CTkButton(
-            self.sidebar, text="Move Drone Test", command=self.move_marker
-        )
-        move_drone_test_button.grid(row=1, column=0, pady=10, padx=20, sticky="w")
+        # move_drone_test_button = customtkinter.CTkButton(
+        #     self.sidebar, text="Move Drone Test", command=self.move_marker
+        # )
+        # move_drone_test_button.grid(row=1, column=0, pady=10, padx=20, sticky="w")
 
         self.start_polygon_button = customtkinter.CTkButton(
             self.sidebar, text="Start Creating Polygon", command=self.start_creating_polygon
         )
-        self.start_polygon_button.grid(row=2, column=0, pady=10, padx=20, sticky="w")
-
-        self.checkbox = customtkinter.CTkCheckBox(self.sidebar, text="Show Mission Area")
-        self.checkbox.grid(row=3, column=0, pady=10, padx=20, sticky="w")
+        self.start_polygon_button.grid(row=1, column=0, pady=10, padx=20, sticky="w")
 
         self.connect_button = customtkinter.CTkButton(
         self.sidebar, text="Connect to Mavlink", command=self.gui_ref.call_mavlink_connection
         )
-        self.connect_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
+        self.connect_button.grid(row=2, column=0, pady=10, padx=20, sticky="w")
 
-        self.arm_button = customtkinter.CTkButton(
-        self.sidebar, text="ARM DRONE 1", command=self.gui_ref.call_arm_mission
+        self.debug_button = customtkinter.CTkButton(
+            self.sidebar, text="Debug Menu", command=self.open_debug_popup
         )
-        self.arm_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
+        self.debug_button.grid(row=3, column=0, pady=10, padx=20, sticky="w")
 
-        self.takeoff_button = customtkinter.CTkButton(
-        self.sidebar, text="TAKEOFF DRONE 1", command=self.gui_ref.call_takeoff_mission
+        # self.arm_button = customtkinter.CTkButton(
+        # self.sidebar, text="ARM DRONE 1", command=self.gui_ref.call_arm_mission
+        # )
+        # self.arm_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
+
+        # self.takeoff_button = customtkinter.CTkButton(
+        # self.sidebar, text="TAKEOFF DRONE 1", command=self.gui_ref.call_takeoff_mission
+        # )
+        # self.takeoff_button.grid(row=6, column=0, pady=10, padx=20, sticky="w")
+        # self.send_waypoints_button = customtkinter.CTkButton(
+        # self.sidebar, text="SEND WAYPOINTS DRONE 1", command=self.gui_ref.call_send_waypoints
+        # )
+        # self.send_waypoints_button.grid(row=7, column=0, pady=10, padx=20, sticky="w")
+        # self.return_to_launch_button = customtkinter.CTkButton(
+        # self.sidebar, text="RETURN TO LAUNCH DRONE 1", command=self.gui_ref.call_return_to_launch
+        # )
+        # self.return_to_launch_button.grid(row=8, column=0, pady=10, padx=20, sticky="w")
+
+        # Back button
+        back_button = customtkinter.CTkButton(
+            self.sidebar, text="Back to Home", command=self.switch_to_home
         )
-        self.takeoff_button.grid(row=6, column=0, pady=10, padx=20, sticky="w")
-        self.send_waypoints_button = customtkinter.CTkButton(
-        self.sidebar, text="SEND WAYPOINTS DRONE 1", command=self.gui_ref.call_send_waypoints
-        )
-        self.send_waypoints_button.grid(row=7, column=0, pady=10, padx=20, sticky="w")
-        self.return_to_launch_button = customtkinter.CTkButton(
-        self.sidebar, text="RETURN TO LAUNCH DRONE 1", command=self.gui_ref.call_return_to_launch
-        )
-        self.return_to_launch_button.grid(row=8, column=0, pady=10, padx=20, sticky="w")
+        back_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
 
         # drone info container
         self.drone_info_container = customtkinter.CTkFrame(self.sidebar)
-        self.drone_info_container.grid(row=9, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
+        self.drone_info_container.grid(row=4, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
         self.drone_info_Label = customtkinter.CTkLabel(self.drone_info_container, text="Drones", font=("Arial", 20))
         self.drone_info_Label.grid(row=0, column=0, pady=10, padx=20, sticky="nsew")
 
@@ -297,8 +324,33 @@ class MapPage(customtkinter.CTkFrame):
         self.bottom_frame = customtkinter.CTkFrame(self)
         self.bottom_frame.grid(row=1, column=1, sticky="nsew")
 
-        bottom_label = customtkinter.CTkLabel(self.bottom_frame, text="Job Queues", font=("Arial", 18))
-        bottom_label.pack(pady=20)
+        # Grid configuration for job lists
+        self.bottom_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        # Create job lists for four drones
+        self.job_lists = []
+        for i in range(4):
+            job_frame = customtkinter.CTkFrame(self.bottom_frame)
+            job_frame.grid(row=0, column=i, sticky="nsew", padx=10, pady=10)
+
+            job_label = customtkinter.CTkLabel(
+                job_frame, text=f"Drone {i+1} Jobs", font=("Arial", 16, "bold")
+            )
+            job_label.pack(pady=5)
+
+            job_scrollable_frame = customtkinter.CTkScrollableFrame(job_frame, width=200, height=150)
+            job_scrollable_frame.pack(fill="both", expand=True)
+
+            self.job_lists.append(job_scrollable_frame)
+
+        # Collapsible right sidebar (unchanged)
+        self.collapsible_sidebar = ChatSidebar(self)
+        self.collapsible_sidebar.grid(row=0, column=2, sticky="nsew", rowspan=2)
+
+        # Grid configuration
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=2)  # 2/3 height for map
+        self.grid_rowconfigure(1, weight=1)  # 1/3 height for bottom frame
 
         #RightClick Menu
         self.map_widget.add_right_click_menu_command(label="Add Job Waypoint", command=self.gui_ref.add_job_waypoint, pass_coords=True)
@@ -307,15 +359,72 @@ class MapPage(customtkinter.CTkFrame):
         self.collapsible_sidebar = ChatSidebar(self)
         self.collapsible_sidebar.grid(row=0, column=2, sticky="nsew")
 
-        # Back button
-        back_button = customtkinter.CTkButton(
-            self.sidebar, text="Back to Home", command=self.switch_to_home
-        )
-        back_button.grid(row=3, column=0, pady=10, padx=20, sticky="w")
+
 
         # Grid configuration
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+    def open_debug_popup(self):
+        if self.debug_window is not None and self.debug_window.winfo_exists():
+            self.debug_window.lift()  # Bring to front if already open
+            return
+
+
+        self.debug_window = customtkinter.CTkToplevel(self)
+        self.debug_window.title("Debugging Menu")
+        self.debug_window.geometry("300x400")
+        self.debug_window.resizable(False, False)
+
+        # Ensure the window does not close instantly
+        self.debug_window.after(100, lambda: self.debug_window.focus_force())
+
+        # Prevent accidental closure
+        self.debug_window.protocol("WM_DELETE_WINDOW", self.close_debug_popup)
+
+        debug_label = customtkinter.CTkLabel(self.debug_window, text="Debugging Tools", font=("Arial", 16, "bold"))
+        debug_label.pack(pady=10)
+
+        btn_test_move = customtkinter.CTkButton(self.debug_window, text="Test Move Drone", command=self.move_marker)
+        btn_test_move.pack(pady=5)
+
+        btn_test_arm = customtkinter.CTkButton(self.debug_window, text="Test Arm Drone", command=self.gui_ref.call_arm_mission)
+        btn_test_arm.pack(pady=5)
+
+        btn_test_takeoff = customtkinter.CTkButton(self.debug_window, text="Test Takeoff", command=self.gui_ref.call_takeoff_mission)
+        btn_test_takeoff.pack(pady=5)
+
+        btn_send_waypoints = customtkinter.CTkButton(self.debug_window, text="Send Waypoints", command=self.gui_ref.call_send_waypoints)
+        btn_send_waypoints.pack(pady=5)
+
+        btn_return_home = customtkinter.CTkButton(self.debug_window, text="Return to Launch", command=self.gui_ref.call_return_to_launch)
+        btn_return_home.pack(pady=5)
+
+        btn_close = customtkinter.CTkButton(self.debug_window, text="Close", command=self.close_debug_popup)
+        btn_close.pack(pady=10)
+
+    def close_debug_popup(self):
+        """Closes the debug popup properly"""
+        if self.debug_window is not None:
+            self.debug_window.destroy()
+            self.debug_window = None
+
+
+
+    def add_job(self, drone_id, job_text, inprogress=False):
+        """
+        Adds a new job to the scrollable frame for the given drone_id (1-4).
+        """
+        if inprogress:
+            color = "#1F6AA5"
+        else:
+            color = "#5C5C5C"
+        if 1 <= drone_id <= 4:
+            job_frame = customtkinter.CTkFrame(self.job_lists[drone_id - 1], )
+            job_frame.pack(fill="x", padx=5, pady=5)
+
+            job_label = customtkinter.CTkLabel(job_frame, text=job_text, font=("Arial", 14), fg_color= color, text_color="white", corner_radius=4)
+            job_label.pack(fill="both", expand=True, padx=5, pady=5)
 
 
     def _add_drone(self, drone_id, system_status):
@@ -424,6 +533,9 @@ class GUI:
 
         # Show the home page initially
         self.home_page.pack(fill="both", expand=True)
+        # Add jobs for Drone 1
+        self.map_page.add_job(1, "USER_PATH\n# Checkpoints: 3\nRecent Checkpoint: 2\nPriority: 6\nStatus: In Progress", 1)
+        self.map_page.add_job(1, "AUTO_SEARCH\n# Checkpoints: 26\nRecent Checkpoint: 8\nPriority: 1\nStatus: Paused")
 
 
     def show_home_page(self):

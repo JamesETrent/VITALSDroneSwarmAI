@@ -59,6 +59,7 @@ class Job:
         if self.job_type == "INVESTIGATE_POI":
             self.last_waypoint = 0
             self.missionState.send_poi_investigate(self.drone_id, self.waypoints[0])
+            
 
 
 class missionState:
