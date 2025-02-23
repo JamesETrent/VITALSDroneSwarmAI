@@ -164,7 +164,7 @@ class Dispatcher:
         """Send a specific waypoint in response to a mission request."""
         
         print(f"Sending waypoint {index} to drone {drone_id}: {lat}, {lon}, {alt}")
-        if waypoint_type == 0:
+        if waypoint_type == 0: # Normal Waypoint
             self.master.mav.mission_item_int_send(
                 drone_id,  # Target drone
                 0,  # Target component
@@ -177,7 +177,7 @@ class Dispatcher:
                 int(lat * 1e7), int(lon * 1e7), alt
             )
             print(f"Waypoint {index} sent to drone {drone_id}: {lat}, {lon}, {alt}")
-        elif waypoint_type == 1:
+        elif waypoint_type == 1: # Takeoff Command
             self.master.mav.mission_item_int_send(
                 drone_id,  # Target drone
                 0,  # Target component
@@ -192,7 +192,7 @@ class Dispatcher:
                 lat, lon, alt
             )
             print(f"Waypoint {index} sent to drone {drone_id}: {lat}, {lon}, {alt}")
-        elif waypoint_type == 2:
+        elif waypoint_type == 2: # Loiter turns Command
             self.master.mav.mission_item_int_send(
                 drone_id,  # Target drone
                 0,  # Target component

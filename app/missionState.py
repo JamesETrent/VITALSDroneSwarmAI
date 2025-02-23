@@ -54,13 +54,6 @@ class Job:
         self.waypoints = waypoints
         self.last_waypoint = 0
     
-    def deployJob(self):
-        self.job_status = "deployed"
-        if self.job_type == "INVESTIGATE_POI":
-            self.last_waypoint = 0
-            self.missionState.send_poi_investigate(self.drone_id, self.waypoints[0])
-            
-
 
 class missionState:
 
@@ -148,17 +141,9 @@ class missionState:
     def send_poi_investigate(self, drone_id, waypoint):
         self.dispatcher.send_poi_investigate(drone_id, waypoint)
         
-    
+
 if __name__ == "__main__":
     gui = GUI.GUI()
     missionState = missionState(gui)
     gui.link_mission_state(missionState)
     gui.run()
-    
-
-    
-
-
-
-
-    

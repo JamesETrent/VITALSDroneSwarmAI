@@ -55,15 +55,12 @@ class Drone:
             self.heading_path = None
         self.heading_path = self.map_widget.set_path(position_list = [(converted_lat, converted_lon), (converted_lat + lat_offset, converted_lon + lon_offset)], width=2, color="red")
 
-            
-
         # calculate velocity
         velocity = math.hypot(vx, vy)
         velocity = velocity * 0.01 # convert cm/s to m/s
         # update info widget
         self.info_widget.updatePos(self.position, self.relative_altitude, velocity, converted_heading)
         
-
     def setTelemetry(self, roll, pitch, yaw):
         self.roll = roll
         self.pitch = pitch
@@ -72,8 +69,6 @@ class Drone:
     def setStatus(self, system_status):
         self.system_status = system_status
         self.info_widget.updateStatus(system_status)
-
-        
 
     def _load_icon(self, path):
         image = PIL.Image.open(path)
@@ -93,8 +88,30 @@ class Job:
         self.end = end
         path_obj = path_obj
 
-    
-        
+class POI:
+    def __init__(self, lat, lon, name, map_widget, info_container, poi_count):
+        self.map_widget = map_widget
+        self.info_container = info_container
+        self.id = poi_count
+        self.lat = lat
+        self.lon = lon
+        self.name = name
+        self.marker = map_widget.set_marker(lat, lon, text=name)
+        self.info_widget = POIInfoBox(info_container, name, lat, lon, poi_count)
+
+class POIInfoBox(customtkinter.CTkFrame):
+    def __init__(self, parent, name, lat, lon, poi_count):
+        # Create the POI info frame
+        self.poi_info =customtkinter.CTkFrame(parent, fg_color="#337ab7")  # Blue background
+        self.poi_info.grid(row=poi_count, column=0, padx=10, pady=10, sticky="ew")
+
+        # Add the POI name
+        self.name_label = customtkinter.CTkLabel(self.poi_info, text=f"Name: {name}", font=("Arial", 12, "bold"), fg_color="#337ab7")
+        self.name_label.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        # Add the coordinates label
+        self.coordinates_label = customtkinter.CTkLabel(self.poi_info, text=f"Coordinates: ({lat:.4f}, {lon:.4f})", font=("Arial", 10), fg_color="#337ab7")
+        self.coordinates_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=5)
 
 
 class ChatSidebar(customtkinter.CTkFrame):
@@ -104,21 +121,29 @@ class ChatSidebar(customtkinter.CTkFrame):
         # Set a fixed width for the chat sidebar
         self.configure(width=300)
 
+        # Grid Configuration (Ensures Resizing Behavior)
+        self.grid_columnconfigure(0, weight=1)  # Allows horizontal expansion
+        self.grid_rowconfigure(1, weight=1)  # Chat area expands
+        self.grid_rowconfigure(2, weight=0)  # Input area stays fixed
+
         # Label for the chat sidebar
         chat_label = customtkinter.CTkLabel(self, text="Chat", font=("Arial", 20))
-        chat_label.pack(pady=10)
+        chat_label.grid(row=0, column=0, pady=10, padx=10, sticky="n")
 
-        # Scrollable chat area
+        # Scrollable chat area (Expands with resizing)
         self.chat_area = customtkinter.CTkTextbox(self, wrap="word", state="disabled", height=400)
-        self.chat_area.pack(padx=10, pady=(0, 10), fill="both", expand=True)
+        self.chat_area.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
 
-        # Input frame for user messages
+        # Input frame (Ensures input field stays visible)
         input_frame = customtkinter.CTkFrame(self)
-        input_frame.pack(fill="x", padx=10, pady=10)
+        input_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")  # Forces it to be visible
+
+        # Ensure input field expands horizontally
+        input_frame.grid_columnconfigure(0, weight=1)
 
         # Input field
         self.input_field = customtkinter.CTkEntry(input_frame, placeholder_text="Type a message...")
-        self.input_field.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.input_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))  # Expands with resizing
 
         # Load the send button icon
         send_icon = self._load_icon("./assets/send.png")
@@ -130,11 +155,10 @@ class ChatSidebar(customtkinter.CTkFrame):
             text="",  # Remove text
             width=20, 
             height=20, 
-            command= None #self.send_message
+            command=None  # self.send_message
         )
         send_button.image = send_icon  # Keep a reference to avoid garbage collection
-        send_button.pack(side="right")
-    #executor = ThreadPoolExecutor(max_workers=2)
+        send_button.grid(row=0, column=1)  # Place it on the right
 
     def _load_icon(self, path):
         """Load and resize an icon."""
@@ -182,7 +206,6 @@ class ChatSidebar(customtkinter.CTkFrame):
         #future= self.executor.submit(call_llm, user_message, polygon_points, drones )
         #future.add_done_callback(on_complete)
         
-
 class DroneInfoBox(customtkinter.CTkFrame):
     def __init__(self, parent, id, row=1):
         # Create the drone info frame
@@ -245,6 +268,7 @@ class MapPage(customtkinter.CTkFrame):
         self.drones = []
         self.polygon_points = []
         self.jobs = []
+        self.pois = []
         self.first_polygon_point = False
         self.editing_polygon = False
         self.debug_window = None
@@ -278,24 +302,6 @@ class MapPage(customtkinter.CTkFrame):
             self.sidebar, text="Debug Menu", command=self.open_debug_popup
         )
         self.debug_button.grid(row=3, column=0, pady=10, padx=20, sticky="w")
-
-        # self.arm_button = customtkinter.CTkButton(
-        # self.sidebar, text="ARM DRONE 1", command=self.gui_ref.call_arm_mission
-        # )
-        # self.arm_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
-
-        # self.takeoff_button = customtkinter.CTkButton(
-        # self.sidebar, text="TAKEOFF DRONE 1", command=self.gui_ref.call_takeoff_mission
-        # )
-        # self.takeoff_button.grid(row=6, column=0, pady=10, padx=20, sticky="w")
-        # self.send_waypoints_button = customtkinter.CTkButton(
-        # self.sidebar, text="SEND WAYPOINTS DRONE 1", command=self.gui_ref.call_send_waypoints
-        # )
-        # self.send_waypoints_button.grid(row=7, column=0, pady=10, padx=20, sticky="w")
-        # self.return_to_launch_button = customtkinter.CTkButton(
-        # self.sidebar, text="RETURN TO LAUNCH DRONE 1", command=self.gui_ref.call_return_to_launch
-        # )
-        # self.return_to_launch_button.grid(row=8, column=0, pady=10, padx=20, sticky="w")
 
         # Back button
         back_button = customtkinter.CTkButton(
@@ -338,14 +344,10 @@ class MapPage(customtkinter.CTkFrame):
             )
             job_label.pack(pady=5)
 
-            job_scrollable_frame = customtkinter.CTkScrollableFrame(job_frame, width=200, height=150)
+            job_scrollable_frame = customtkinter.CTkScrollableFrame(job_frame, width=200, height=200)
             job_scrollable_frame.pack(fill="both", expand=True)
 
             self.job_lists.append(job_scrollable_frame)
-
-        # Collapsible right sidebar (unchanged)
-        self.collapsible_sidebar = ChatSidebar(self)
-        self.collapsible_sidebar.grid(row=0, column=2, sticky="nsew", rowspan=2)
 
         # Grid configuration
         self.grid_columnconfigure(1, weight=1)
@@ -354,12 +356,17 @@ class MapPage(customtkinter.CTkFrame):
 
         #RightClick Menu
         self.map_widget.add_right_click_menu_command(label="Add Job Waypoint", command=self.gui_ref.add_job_waypoint, pass_coords=True)
+        self.map_widget.add_right_click_menu_command(label="Create POI", command=self.create_test_poi, pass_coords=True)
 
         # Collapsible right sidebar
         self.collapsible_sidebar = ChatSidebar(self)
         self.collapsible_sidebar.grid(row=0, column=2, sticky="nsew")
 
-
+        #POI Info Frame
+        self.poi_info_container = customtkinter.CTkScrollableFrame(self, width=200, height=200)
+        self.poi_info_container.grid(row=1, column=2, pady=10, padx=20, sticky="nsew")
+        self.poi_info_Label = customtkinter.CTkLabel(self.poi_info_container, text="POIs", font=("Arial", 20))
+        self.poi_info_Label.grid(row=0, column=0, pady=10, padx=20, sticky="nsew")
 
         # Grid configuration
         self.grid_columnconfigure(1, weight=1)
@@ -456,7 +463,6 @@ class MapPage(customtkinter.CTkFrame):
         # create job object
         job = Job(job_name, drone_id, list_of_tuples, path_obj)
         self.jobs.append(job)
-
     
     def start_creating_polygon(self):
         if self.editing_polygon:
@@ -471,6 +477,7 @@ class MapPage(customtkinter.CTkFrame):
             self.editing_polygon = True
             # change button text
             self.start_polygon_button.configure(text="Finish Creating Polygon")
+
     def create_test_job(self):
         job = Job((28.6037837, -81.2018019), [(28.6037837, -81.2018019), (28.6037931, -81.2008148), (28.6037366, -81.1983150)], (28.6037366, -81.1983150))
         print(job.start)
@@ -478,16 +485,25 @@ class MapPage(customtkinter.CTkFrame):
         print(job.end)
         self.map_widget.set_path(position_list = job.waypoints, width=5, color="red")
         print("Job Created")
+
     def get_polygon_points(self):
         return self.polygon_points
+
     def get_drones(self):
         payload = []
         for drone in self.drones:
             payload.append({"id": drone.id, "battery": drone.battery, "lat": drone.position[0], "lon": drone.position[1]})
         return payload
-            
-        
-
+    
+    def add_poi(self, lat, lon, name):
+        poi_count = len(self.pois) + 1
+        poi = POI(lat, lon, name, self.map_widget, self.poi_info_container, poi_count)
+        self.pois.append(poi)
+    
+    def create_test_poi(self, coords):
+        poi_count = len(self.pois) + 1
+        self.add_poi(coords[0], coords[1], f"POI {poi_count}")
+    
 
 class HomePage(customtkinter.CTkFrame):
     def __init__(self, parent, switch_to_map, gui_ref, **kwargs):
