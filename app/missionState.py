@@ -45,15 +45,40 @@ class Drone:
         self.missionState.gui.updateDroneStatus(self.drone_id, system_status)
     
 class Job:
-    def __init__(self, job_id, job_type, job_status, waypoints, missionState, drone_id):
+    def __init__(self, job_id, job_type, job_status, waypoints, missionState, job_priority):
         self.missionState = missionState
-        self.drone_id = drone_id
         self.job_id = job_id
         self.job_type = job_type
         self.job_status = job_status
         self.waypoints = waypoints
+        self.job_priority = job_priority
         self.last_waypoint = 0
-    
+
+class POI:
+    def __init__(self, lat, lon, name, desc, poi_status, poi_type):
+        self.lat = lat
+        self.lon = lon
+        self.name = name
+        self.desc = desc
+        self.poi_status = poi_status
+        self.poi_type = poi_type
+
+# a job queue for each drone
+class jobPriorityQueue:
+    def __init__(self, missionState, drone_id):
+        self.missionState = missionState
+        self.drone_id = drone_id
+        self.queue = []
+
+    def add_job(self, job):
+        self.queue.append(job)
+        self.queue.sort(key=lambda x: x.job_priority, reverse=True)
+
+    def pop_job(self):
+        if len(self.queue) > 0:
+            return self.queue.pop(0)
+        else:
+            return None
 
 class missionState:
 
@@ -66,7 +91,7 @@ class missionState:
         self.dispatcher = Dispatcher.Dispatcher(self)
         # TEST VALUES
         self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 0) , (28.6004825, -81.1942729, 10, 0)]
-        
+        self.mission_waypoints2  = [(28.6037272, -81.2006593, 10, 2)]
         
     def connect_to_mavlink(self):
         success = self.dispatcher.connect()
@@ -130,10 +155,15 @@ class missionState:
         self.dispatcher.arm_drone(drone_id)
     
     def takeoff_mission(self, drone_id):
-        self.dispatcher.takeoff_drone(drone_id)
+        self.dispatcher.takeoff(drone_id, 10)
     
-    def send_waypoints(self, drone_id):
-        self.dispatcher.send_mission(drone_id, self.mission_waypoints)
+    def send_waypoints(self, drone_id, waypoints = 0):
+        if waypoints == 0:
+            waypoints = self.mission_waypoints
+        else:
+            waypoints = self.mission_waypoints2
+        print("Sending waypoints")
+        self.dispatcher.send_mission(drone_id, waypoints)
     
     def return_to_launch(self, drone_id):
         self.dispatcher.return_to_launch(drone_id)

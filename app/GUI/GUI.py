@@ -96,14 +96,42 @@ class POI:
         self.lat = lat
         self.lon = lon
         self.name = name
-        self.marker = map_widget.set_marker(lat, lon, text=name)
-        self.info_widget = POIInfoBox(info_container, name, lat, lon, poi_count)
+        self.marker = map_widget.set_marker(lat, lon, text=name, command=self.open_popup)
+        self.info_widget = POIInfoBox(info_container, name, lat, lon, poi_count, popup_func=self.open_popup)
+        
+    
+    def open_popup(self, event):
+        # Create a new window
+        self.popup = customtkinter.CTkToplevel(self.info_container)
+        self.popup.title(self.name)
+        self.popup.geometry("300x200")
+
+        #push the popup to the front
+        self.popup.lift()
+        self.popup.focus_force()
+        self.popup.grab_set()
+        self.popup.protocol("WM_DELETE_WINDOW", self.popup.destroy)
+
+        # Add content to the popup
+        name_label = customtkinter.CTkLabel(self.popup, text=f"Name: {self.name}", font=("Arial", 12))
+        name_label.pack(pady=10)
+        coordinates_label = customtkinter.CTkLabel(self.popup, text=f"Coordinates: ({self.lat:.4f}, {self.lon:.4f})", font=("Arial", 12))
+        coordinates_label.pack(pady=10)
+        description_label = customtkinter.CTkLabel(self.popup, text="Description: This is a POI.", font=("Arial", 12))
+        description_label.pack(pady=10)
+        
+
+        # Add a close button
+        close_button = customtkinter.CTkButton(self.popup, text="Close", command=self.popup.destroy)
+        close_button.pack(pady=10)
 
 class POIInfoBox(customtkinter.CTkFrame):
-    def __init__(self, parent, name, lat, lon, poi_count):
+    def __init__(self, parent, name, lat, lon, poi_count, popup_func):
         # Create the POI info frame
         self.poi_info =customtkinter.CTkFrame(parent, fg_color="#337ab7")  # Blue background
         self.poi_info.grid(row=poi_count, column=0, padx=10, pady=10, sticky="ew")
+        self.poi_info.bind("<Button-1>", popup_func)
+        
 
         # Add the POI name
         self.name_label = customtkinter.CTkLabel(self.poi_info, text=f"Name: {name}", font=("Arial", 12, "bold"), fg_color="#337ab7")
@@ -112,6 +140,8 @@ class POIInfoBox(customtkinter.CTkFrame):
         # Add the coordinates label
         self.coordinates_label = customtkinter.CTkLabel(self.poi_info, text=f"Coordinates: ({lat:.4f}, {lon:.4f})", font=("Arial", 10), fg_color="#337ab7")
         self.coordinates_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=5)
+    
+    
 
 
 class ChatSidebar(customtkinter.CTkFrame):
@@ -388,6 +418,19 @@ class MapPage(customtkinter.CTkFrame):
 
         # Prevent accidental closure
         self.debug_window.protocol("WM_DELETE_WINDOW", self.close_debug_popup)
+        #target drone input
+        target_drone_label = customtkinter.CTkLabel(self.debug_window, text="Target Drone ID (1-4):")
+        target_drone_label.pack(pady=10)
+
+        self.target_drone_entry = customtkinter.CTkEntry(self.debug_window)
+        self.target_drone_entry.pack(pady=10)
+
+        #use waypoints input
+        use_waypoints_label = customtkinter.CTkLabel(self.debug_window, text="Use Waypoints (1-4):")
+        use_waypoints_label.pack(pady=10)
+        self.use_waypoints_entry = customtkinter.CTkEntry(self.debug_window)
+        self.use_waypoints_entry.pack(pady=10)
+        #debugging tools
 
         debug_label = customtkinter.CTkLabel(self.debug_window, text="Debugging Tools", font=("Arial", 16, "bold"))
         debug_label.pack(pady=10)
@@ -409,6 +452,18 @@ class MapPage(customtkinter.CTkFrame):
 
         btn_close = customtkinter.CTkButton(self.debug_window, text="Close", command=self.close_debug_popup)
         btn_close.pack(pady=10)
+    
+    def get_target_debug_drone(self):
+        try:
+            return int(self.target_drone_entry.get())
+        except ValueError:
+            return None
+    def get_debug_waypoints(self):
+        try:
+            return int(self.use_waypoints_entry.get())
+        except ValueError:
+            return None
+
 
     def close_debug_popup(self):
         """Closes the debug popup properly"""
@@ -594,16 +649,21 @@ class GUI:
             drone.setStatus(system_status)
     
     def call_takeoff_mission(self):
-        self.missionState.takeoff_mission(1)
+        target_drone = self.map_page.get_target_debug_drone()
+        self.missionState.takeoff_mission(target_drone)
     
     def call_arm_mission(self):
-        self.missionState.arm_mission(1)
+        target_drone = self.map_page.get_target_debug_drone()
+        self.missionState.arm_mission(target_drone)
     
     def call_send_waypoints(self):
-        self.missionState.send_waypoints(1)
+        target_drone = self.map_page.get_target_debug_drone()
+        debug_waypoints = self.map_page.get_debug_waypoints()
+        self.missionState.send_waypoints(target_drone, debug_waypoints)
     
     def call_return_to_launch(self):
-        self.missionState.return_to_launch(3)
+        target_drone = self.map_page.get_target_debug_drone()
+        self.missionState.return_to_launch(target_drone)
     
     def add_job_waypoint(self, coords):
         if len(self.currentJobWaypoints) == 0:
