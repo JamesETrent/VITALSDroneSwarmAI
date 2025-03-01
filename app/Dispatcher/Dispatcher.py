@@ -28,6 +28,7 @@ class Dispatcher:
         self.uploading_missions = {}
         self.unhandled_clears = [] # list of drones that have sent a mission clear command, awaiting ack
         self.waiting_for_takeoff = []
+        self.requeted_missions = []
         
     def connect(self):
         try:
@@ -72,6 +73,12 @@ class Dispatcher:
                             drone_id, msg.lat, msg.lon, msg.alt, msg.relative_alt,
                             msg.hdg, msg.vx, msg.vy, msg.vz
                         )
+                    elif msg_type == "MISSION_COUNT":
+                        print(f"Drone {drone_id} has {msg.count} waypoints stored.")
+                        self.requeted_missions.insert(drone_id, {
+                            "waypoints": [],
+                            "expected_count": msg.count,
+                            })
 
                     elif msg_type == "ATTITUDE":
                         self.missionState.updateDroneTelemetry(
@@ -85,10 +92,16 @@ class Dispatcher:
                             print(f"Mission acknowledgment received from drone {drone_id}: {msg.type}")
                             await self.handle_mission_ack(drone_id, msg.type)
 
+                    # elif msg_type == "MISSION_CURRENT":
+                    #         print(f"Drone {drone_id} is currently at waypoint {msg.seq} Mission State: {msg.mission_state} Total Waypoints: {msg.total}")
+
                     elif msg_type == "COMMAND_ACK":
                             print(f"Command acknowledgment received for drone {drone_id}: {msg.command} - {msg.result}")
                     elif msg_type == "MISSION_ITEM_REACHED":
                             print(f"Drone {drone_id} reached waypoint {msg.seq}")
+                    
+                    elif msg_type == "MISSION_ITEM":
+                            print(f"Received waypoint {msg.seq} from drone {drone_id}: ({msg.x / 1e7}, {msg.y / 1e7}, {msg.z})")
                     # elif msg_type == "MISSION_CURRENT":
                     #        print(f"Drone {drone_id} is currently at waypoint {msg.seq} Mission State: {msg.mission_state}")
 
@@ -126,14 +139,12 @@ class Dispatcher:
 
     async def upload_mission(self, drone_id, waypoints):
         """Initiate mission upload using the correct MAVLink protocol."""
+        print(f"Uploading mission to drone {drone_id} with {len(waypoints)} waypoints...")
 
-        # Get the drone's current status
-        drone = self.missionState.get_drone(drone_id)
-        if not drone:
-            print(f"Drone {drone_id} not found.")
-            return
-        if drone.system_status == 3 : #drone is grounded need to add takeoff
-            waypoints.insert(0, (drone.latitude, drone.longitude, 10, 1))
+        #append home waypoint to the mission
+        home_lat, home_lon = self.missionState.drones[drone_id].get_home()
+        waypoints.insert(0, (home_lat, home_lon, 10, 1)) # add home waypoint to the start of the mission
+
             
 
         # Clear existing mission
@@ -369,6 +380,15 @@ class Dispatcher:
     def ack(self, keyword):
         """wait for the drone to acknowledge a command"""
         print(str(self.master.recv_match(type=keyword, blocking=True)))
+    
+    def request_mission_list(self, drone_id):
+        """Request the mission list from the drone."""
+        if not self.master:
+            print(f"Cannot request mission list: MAVLink is not connected!")
+            return
+
+        print(f"Requesting mission list from drone {drone_id}...")
+        self.master.mav.mission_request_list_send(drone_id, 0)
 
 
 

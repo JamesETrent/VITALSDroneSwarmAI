@@ -16,6 +16,8 @@ class Drone:
     vx = None # cm per second
     vy = None # cm per second
     vz = None # cm per second
+    home_latitude = None # Note: this is not a float, it is a int with 7 decimal places
+    home_longitude = None # Note: this is not a float, it is a int with 7 decimal places
 
     def __init__(self, missionState, drone_id, system_status):
         self.missionState = missionState
@@ -32,9 +34,11 @@ class Drone:
         self.vx = vx
         self.vy = vy
         self.vz = vz
+        if self.home_latitude is None:
+            self.home_latitude = latitude
+            self.home_longitude = longitude
         self.missionState.gui.updateDronePosition(self.drone_id, latitude, longitude, altitude, relative_altitude, heading, vx, vy, vz)
 
-    
     def updateTelemetry(self, roll, pitch, yaw):
         self.roll = roll
         self.pitch = pitch
@@ -43,6 +47,10 @@ class Drone:
     def updateStatus(self, system_status):
         self.system_status = system_status
         self.missionState.gui.updateDroneStatus(self.drone_id, system_status)
+
+    #GETTERS
+    def get_home(self):
+        return (self.home_latitude, self.home_longitude, )
     
 class Job:
     def __init__(self, job_id, job_type, job_status, waypoints, missionState, job_priority):
@@ -90,7 +98,7 @@ class missionState:
         self.loop = asyncio.new_event_loop()
         self.dispatcher = Dispatcher.Dispatcher(self)
         # TEST VALUES
-        self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 0) , (28.6004825, -81.1942729, 10, 0)]
+        self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 2) , (28.6004825, -81.1942729, 10, 0)]
         self.mission_waypoints2  = [(28.6037272, -81.2006593, 10, 2)]
         
     def connect_to_mavlink(self):
@@ -170,6 +178,9 @@ class missionState:
     
     def send_poi_investigate(self, drone_id, waypoint):
         self.dispatcher.send_poi_investigate(drone_id, waypoint)
+    
+    def send_mission_list_request(self, drone_id):
+        self.dispatcher.request_mission_list(drone_id)
         
 
 if __name__ == "__main__":

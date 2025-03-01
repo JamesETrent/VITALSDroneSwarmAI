@@ -410,7 +410,7 @@ class MapPage(customtkinter.CTkFrame):
 
         self.debug_window = customtkinter.CTkToplevel(self)
         self.debug_window.title("Debugging Menu")
-        self.debug_window.geometry("300x400")
+        self.debug_window.geometry("300x600")
         self.debug_window.resizable(False, False)
 
         # Ensure the window does not close instantly
@@ -449,6 +449,9 @@ class MapPage(customtkinter.CTkFrame):
 
         btn_return_home = customtkinter.CTkButton(self.debug_window, text="Return to Launch", command=self.gui_ref.call_return_to_launch)
         btn_return_home.pack(pady=5)
+
+        btn_request_mission_list = customtkinter.CTkButton(self.debug_window, text="Request Mission List", command=self.gui_ref.call_request_mission_list)
+        btn_request_mission_list.pack(pady=5)
 
         btn_close = customtkinter.CTkButton(self.debug_window, text="Close", command=self.close_debug_popup)
         btn_close.pack(pady=10)
@@ -664,6 +667,10 @@ class GUI:
     def call_return_to_launch(self):
         target_drone = self.map_page.get_target_debug_drone()
         self.missionState.return_to_launch(target_drone)
+    
+    def call_request_mission_list(self):
+        target_drone = self.map_page.get_target_debug_drone()
+        self.missionState.send_mission_list_request(target_drone)
     
     def add_job_waypoint(self, coords):
         if len(self.currentJobWaypoints) == 0:
