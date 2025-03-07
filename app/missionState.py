@@ -4,6 +4,7 @@ import asyncio
 import threading
 from TerrainPreProcessing.terrain_queries import create_search_area
 from TerrainPreProcessing.visualization import plot_search_area
+import heapq
 
 class Drone:
     drone_id = None
@@ -18,11 +19,16 @@ class Drone:
     vz = None # cm per second
     home_latitude = None # Note: this is not a float, it is a int with 7 decimal places
     home_longitude = None # Note: this is not a float, it is a int with 7 decimal places
+    jobQueue = None
+    active_job = None
+    last_mission_state = None
 
     def __init__(self, missionState, drone_id, system_status):
         self.missionState = missionState
         self.drone_id = drone_id
         self.system_status = system_status
+        self.jobQueue = jobPriorityQueue()
+        
 
     #SETTERS
     def updatePosition(self, latitude, longitude, altitude, relative_altitude, heading, vx, vy, vz):
@@ -44,23 +50,101 @@ class Drone:
         self.pitch = pitch
         self.yaw = yaw
         self.missionState.gui.updateDroneTelemetry(self.drone_id, roll, pitch, yaw)
+
     def updateStatus(self, system_status):
         self.system_status = system_status
         self.missionState.gui.updateDroneStatus(self.drone_id, system_status)
+    
+    def addJob(self, job):
+        if self.jobQueue.is_empty() and self.active_job is None: 
+            self.setActiveJob(job)
+        elif self.active_job is not None and (job.job_priority - self.active_job.job_priority) > 3:
+            # if the new job has a higher priority than the active job, pause the active job
+            self.setActiveJob(job)
+        else:
+            self.jobQueue.add_job(job)
+        self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+
+    def setActiveJob(self, job):
+        if self.active_job is not None:
+            self.pauseJob()
+        job.status = "loading"
+        self.active_job = job
+        waypoint_payload = []
+        # append waypoints from last waypoint to the end of the list
+        for i in range(self.active_job.last_waypoint, len(self.active_job.waypoints)):
+            waypoint_payload.append(self.active_job.waypoints[i])
+        # send the waypoints to the drone
+        self.missionState.send_waypoints(self.drone_id, waypoint_payload)
+        self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+    
+    def updateJobStatus(self, status):
+        self.active_job.job_status = status
+        self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+    
+    def pauseJob(self):
+        self.active_job.job_status = "paused"
+        self.jobQueue.add_job(self.active_job)
+        self.active_job = None
+        self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+    
+    def setJobRunning(self):
+        if self.active_job is not None:
+            self.active_job.job_status = "Running"
+            self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+        
+    
+    def setJobComplete(self):
+        if self.active_job is not None:
+            print(f"Completing job {self.active_job.job_id}")  # Debugging
+            self.active_job.job_status = "Completed"
+            self.active_job = None  
+            if not self.jobQueue.is_empty():
+                next_job = self.jobQueue.get_next_job()
+                print(f"Next job: {next_job.job_id}")  # Debugging
+                self.setActiveJob(next_job)  # Ensure it's using the new job
+            self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+    
+    def setJobFailedUpload(self):
+        if self.active_job is not None and self.active_job.upload_try_count < 3:
+            self.active_job.job_status = "Failed Upload"
+            self.missionState.send_waypoints(self.drone_id, self.active_job.waypoints)
+            self.active_job.upload_try_count += 1
+        else:
+            self.active_job.job_status = "Failed Upload"
+            self.active_job = None
+            if not self.jobQueue.is_empty():
+                next_job = self.jobQueue.get_next_job()
+                self.setActiveJob(next_job)
+    
+    def setLastWaypoint(self, waypoint):
+        if self.active_job is not None:
+            self.active_job.last_waypoint = waypoint
+            self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+            
+
+
+
 
     #GETTERS
     def get_home(self):
         return (self.home_latitude, self.home_longitude, )
     
 class Job:
-    def __init__(self, job_id, job_type, job_status, waypoints, missionState, job_priority):
+    def __init__(self, job_type, job_status, waypoints, missionState, job_priority):
         self.missionState = missionState
-        self.job_id = job_id
+        self.job_id = missionState.jobIDCounter
+        missionState.jobIDCounter += 1
         self.job_type = job_type
         self.job_status = job_status
         self.waypoints = waypoints
         self.job_priority = job_priority
         self.last_waypoint = 0
+        self.upload_try_count = 0
+    
+    def __lt__(self, other):
+        # Compare jobs based on their priority sorting from high to low since using minheap
+        return self.job_priority > other.job_priority
 
 class POI:
     def __init__(self, lat, lon, name, desc, poi_status, poi_type):
@@ -73,20 +157,27 @@ class POI:
 
 # a job queue for each drone
 class jobPriorityQueue:
-    def __init__(self, missionState, drone_id):
-        self.missionState = missionState
-        self.drone_id = drone_id
+    def __init__(self):
         self.queue = []
-
+    
     def add_job(self, job):
-        self.queue.append(job)
-        self.queue.sort(key=lambda x: x.job_priority, reverse=True)
-
-    def pop_job(self):
-        if len(self.queue) > 0:
-            return self.queue.pop(0)
+        heapq.heappush(self.queue, job)
+    
+    def get_next_job(self):
+        if self.queue:
+            return heapq.heappop(self.queue)
         else:
             return None
+    
+    def peek_next_job(self):
+        if self.queue:
+            return self.queue[0]
+        else:
+            return None
+    
+    def is_empty(self):
+        return len(self.queue) == 0
+
 
 class missionState:
 
@@ -97,9 +188,12 @@ class missionState:
         self.gui = gui
         self.loop = asyncio.new_event_loop()
         self.dispatcher = Dispatcher.Dispatcher(self)
+        self.jobIDCounter = 100
         # TEST VALUES
-        self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 2) , (28.6004825, -81.1942729, 10, 0)]
-        self.mission_waypoints2  = [(28.6037272, -81.2006593, 10, 2)]
+        self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 0) , (28.6004825, -81.1942729, 10, 0)]
+        self.mission_waypoints2  = [(28.6000236, -81.1988032, 10, 2)]
+        self.mission_waypoints3 = [(28.5991587, -81.1985403, 10, 0 ), (28.6014194, -81.2027675, 10, 0)]
+        
         
     def connect_to_mavlink(self):
         success = self.dispatcher.connect()
@@ -165,11 +259,8 @@ class missionState:
     def takeoff_mission(self, drone_id):
         self.dispatcher.takeoff(drone_id, 10)
     
-    def send_waypoints(self, drone_id, waypoints = 0):
-        if waypoints == 0:
-            waypoints = self.mission_waypoints
-        else:
-            waypoints = self.mission_waypoints2
+    def send_waypoints(self, drone_id, waypoints):
+
         print("Sending waypoints")
         self.dispatcher.send_mission(drone_id, waypoints)
     
@@ -181,6 +272,43 @@ class missionState:
     
     def send_mission_list_request(self, drone_id):
         self.dispatcher.request_mission_list(drone_id)
+    
+    def handle_reached_waypoint(self, drone_id, waypoint):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            drone.setLastWaypoint(waypoint)
+    
+    def handle_mission_state_update(self, drone_id, mission_state):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            if mission_state == 5:
+                if drone.last_mission_state != 5: # this ensures that the drone is not already in the state
+                    drone.setJobComplete()
+            drone.last_mission_state = mission_state
+            
+    def create_job(self, job_type, waypoints, job_priority, drone_id):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            job = Job(job_type, "pending", waypoints, self, job_priority)
+            drone.addJob(job)
+    
+    def test_add_job(self, drone_id, use_waypoints):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            if use_waypoints == 1:
+                job = Job("Automated Path", "pending", self.mission_waypoints, self, 1)
+                drone.addJob(job)
+            elif use_waypoints == 2:
+                job = Job("Investigate Point", "pending", self.mission_waypoints2, self, 5)
+                drone.addJob(job)
+            elif use_waypoints == 3:
+                job = Job("User Path", "pending", self.mission_waypoints3, self, 5)
+                drone.addJob(job)
+            
+    
+    def get_drone(self, drone_id):
+        return next((d for d in self.drones if d.drone_id == drone_id), None)
+
         
 
 if __name__ == "__main__":

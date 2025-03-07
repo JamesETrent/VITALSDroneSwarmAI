@@ -11,9 +11,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 class Drone:
     
-    def __init__(self, map_widget, info_container, drone_id, system_status):
+    def __init__(self, map_widget, info_container,job_container, drone_id, system_status):
         self.map_widget = map_widget
         self.info_container = info_container
+        self.job_container = job_container
         self.id = drone_id
         self.system_status = system_status
         self.position = None
@@ -25,7 +26,13 @@ class Drone:
         self.roll = None
         self.pitch = None
         self.yaw = None
+        self.active_job = None
+        self.job_list = []
+        self.active_job_path = None
+        self.active_job_start_pos = None
+        self.id_of_job_with_path = None
         self.info_widget = DroneInfoBox(info_container, drone_id)
+        self.job_info_container = jobInfoContainer(job_container, drone_id)
 
     
     def setPosition(self, lat, lon, altitude, relative_altitude, heading, vx, vy, vz):
@@ -80,6 +87,53 @@ class Drone:
         new_lon = self.position[1] + lon_offset
         self.position = (new_lat, new_lon)
         self.marker.set_position(new_lat, new_lon)
+    
+    def update_jobs(self, active_job, job_list):
+        self.active_job = active_job
+        self.job_list = job_list
+
+        # Step 1: Clear old widgets
+        def clear_widgets():
+            for widget in self.job_info_container.job_scrollable_frame.winfo_children():
+                widget.destroy()
+            
+            
+            # Step 2: Add new jobs only if they exist
+            if active_job:
+                jobInfoItem(self.job_info_container.job_scrollable_frame, active_job, 0, active=True)
+                trimmed_path = []
+                # add current position to path
+                if self.active_job_start_pos is not None:
+                    if self.id_of_job_with_path == active_job.job_id:
+                        trimmed_path.append(self.active_job_start_pos)
+                    else:
+                        self.active_job_start_pos = self.position
+                        self.id_of_job_with_path = active_job.job_id
+                        trimmed_path.append(self.active_job_start_pos)
+                        self.active_job_path.delete()
+                else:
+                    self.active_job_start_pos = self.position
+                    self.id_of_job_with_path = active_job.job_id
+                    trimmed_path.append(self.active_job_start_pos)
+                for i, waypoint in enumerate(active_job.waypoints):
+                    trimmed_path.append((waypoint[0], waypoint[1]))
+                if self.active_job_path is not None:
+                    self.active_job_path.delete()
+                self.active_job_path = self.map_widget.set_path(position_list = trimmed_path, width=5, color="green")
+            else:
+                self.active_job_path.delete()
+                self.active_job_path = None
+                self.active_job_start_pos = None
+                self.id_of_job_with_path = None
+
+            
+            for i, job in enumerate(job_list):
+                jobInfoItem(self.job_info_container.job_scrollable_frame, job, i + 1)
+
+        # Use `after` to avoid accessing destroyed widgets immediately
+        self.map_widget.after(100, clear_widgets)
+
+
 
 class Job:
     def __init__(self, start, waypoints, end, path_obj):
@@ -235,6 +289,47 @@ class ChatSidebar(customtkinter.CTkFrame):
         
         #future= self.executor.submit(call_llm, user_message, polygon_points, drones )
         #future.add_done_callback(on_complete)
+
+class jobInfoContainer(customtkinter.CTkFrame):
+    def __init__(self, parent, drone_id):
+        # Create the drone info frame
+        self.job_frame = customtkinter.CTkFrame(parent)
+        self.job_frame.grid(row=0, column=drone_id-1, sticky="nsew", padx=10, pady=10)
+
+        self.job_label = customtkinter.CTkLabel(
+            self.job_frame, text=f"Drone {drone_id} Jobs", font=("Arial", 16, "bold")
+        )
+        self.job_label.pack(pady=5)
+
+        self.job_scrollable_frame = customtkinter.CTkScrollableFrame(self.job_frame, width=200, height=200)
+        self.job_scrollable_frame.pack(fill="both", expand=True)
+
+class jobInfoItem(customtkinter.CTkFrame):
+    def __init__(self, parent, job, row, active=False):
+        # Create the job info frame
+        if active:
+            self.job_info = customtkinter.CTkFrame(parent, fg_color="#337ab7")
+        else:
+            self.job_info = customtkinter.CTkFrame(parent, fg_color="#5C5C5C")
+        self.job_info.grid(row=row, column=0, padx=10, pady=10, sticky="ew")
+
+        self.job_type_label = customtkinter.CTkLabel(self.job_info, text=job.job_type, font=("Arial", 12, "bold"))
+        self.job_type_label.grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        self.job_status_label = customtkinter.CTkLabel(self.job_info, text=job.job_status, font=("Arial", 10, "bold"))
+        self.job_status_label.grid(row=1, column=1, sticky="e", padx=5, pady=5)
+
+        self.num_waypoints_label = customtkinter.CTkLabel(self.job_info, text=f"Waypoints: {len(job.waypoints)}", font=("Arial", 10))
+        self.num_waypoints_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=5)
+
+        self.last_waypoint_label = customtkinter.CTkLabel(self.job_info, text=f"Last Visited Waypoint: {job.last_waypoint}", font=("Arial", 10))
+        self.last_waypoint_label.grid(row=3, column=0, columnspan=2, sticky="w", padx=5)
+
+        self.job_priority_label = customtkinter.CTkLabel(self.job_info, text=f"Priority: {job.job_priority}", font=("Arial", 10))
+        self.job_priority_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=5)
+
+
+        
         
 class DroneInfoBox(customtkinter.CTkFrame):
     def __init__(self, parent, id, row=1):
@@ -363,22 +458,6 @@ class MapPage(customtkinter.CTkFrame):
         # Grid configuration for job lists
         self.bottom_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
-        # Create job lists for four drones
-        self.job_lists = []
-        for i in range(4):
-            job_frame = customtkinter.CTkFrame(self.bottom_frame)
-            job_frame.grid(row=0, column=i, sticky="nsew", padx=10, pady=10)
-
-            job_label = customtkinter.CTkLabel(
-                job_frame, text=f"Drone {i+1} Jobs", font=("Arial", 16, "bold")
-            )
-            job_label.pack(pady=5)
-
-            job_scrollable_frame = customtkinter.CTkScrollableFrame(job_frame, width=200, height=200)
-            job_scrollable_frame.pack(fill="both", expand=True)
-
-            self.job_lists.append(job_scrollable_frame)
-
         # Grid configuration
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=2)  # 2/3 height for map
@@ -453,6 +532,9 @@ class MapPage(customtkinter.CTkFrame):
         btn_request_mission_list = customtkinter.CTkButton(self.debug_window, text="Request Mission List", command=self.gui_ref.call_request_mission_list)
         btn_request_mission_list.pack(pady=5)
 
+        btn_add_test_job = customtkinter.CTkButton(self.debug_window, text="Add Test Job", command=self.gui_ref.call_create_test_job)
+        btn_add_test_job.pack(pady=5)
+
         btn_close = customtkinter.CTkButton(self.debug_window, text="Close", command=self.close_debug_popup)
         btn_close.pack(pady=10)
     
@@ -493,7 +575,7 @@ class MapPage(customtkinter.CTkFrame):
 
 
     def _add_drone(self, drone_id, system_status):
-        newdrone = Drone(self.map_widget, self.drone_info_container, drone_id, system_status)
+        newdrone = Drone(self.map_widget, self.drone_info_container, self.bottom_frame, drone_id, system_status)
         self.drones.append(newdrone)
 
     def left_click_event(self, coordinates_tuple):
@@ -607,11 +689,7 @@ class GUI:
 
         # Show the home page initially
         self.home_page.pack(fill="both", expand=True)
-        # Add jobs for Drone 1
-        self.map_page.add_job(1, "USER_PATH\n# Checkpoints: 3\nRecent Checkpoint: 2\nPriority: 6\nStatus: In Progress", 1)
-        self.map_page.add_job(1, "AUTO_SEARCH\n# Checkpoints: 26\nRecent Checkpoint: 8\nPriority: 1\nStatus: Paused")
-
-
+        
     def show_home_page(self):
         self.map_page.pack_forget()
         self.home_page.pack(fill="both", expand=True)
@@ -640,17 +718,29 @@ class GUI:
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
         if drone is not None:
             drone.setPosition(lat, lon, altitude, relative_altitude, heading, vx, vy, vz)
+
     def updateDroneTelemetry(self, drone_id, roll, pitch, yaw):
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
         if drone is not None:
             drone.setTelemetry(roll, pitch, yaw)
+
     def addDrone(self, drone_id, system_status):
         self.map_page._add_drone(drone_id, system_status)
+
     def updateDroneStatus(self, drone_id, system_status):
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
         if drone is not None:
             drone.setStatus(system_status)
     
+    def updateJobs(self, drone_id, active_job, job_list):
+        drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
+        if drone is not None:
+            drone.update_jobs(active_job, job_list)
+    
+    
+
+
+    #Debugging Functions
     def call_takeoff_mission(self):
         target_drone = self.map_page.get_target_debug_drone()
         self.missionState.takeoff_mission(target_drone)
@@ -671,6 +761,11 @@ class GUI:
     def call_request_mission_list(self):
         target_drone = self.map_page.get_target_debug_drone()
         self.missionState.send_mission_list_request(target_drone)
+    
+    def call_create_test_job(self):
+        target_drone = self.map_page.get_target_debug_drone()
+        debug_waypoints = self.map_page.get_debug_waypoints()
+        self.missionState.test_add_job(target_drone, debug_waypoints)
     
     def add_job_waypoint(self, coords):
         if len(self.currentJobWaypoints) == 0:

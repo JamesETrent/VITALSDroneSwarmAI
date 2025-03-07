@@ -92,19 +92,16 @@ class Dispatcher:
                             print(f"Mission acknowledgment received from drone {drone_id}: {msg.type}")
                             await self.handle_mission_ack(drone_id, msg.type)
 
-                    # elif msg_type == "MISSION_CURRENT":
-                    #         print(f"Drone {drone_id} is currently at waypoint {msg.seq} Mission State: {msg.mission_state} Total Waypoints: {msg.total}")
-
                     elif msg_type == "COMMAND_ACK":
                             print(f"Command acknowledgment received for drone {drone_id}: {msg.command} - {msg.result}")
                     elif msg_type == "MISSION_ITEM_REACHED":
-                            print(f"Drone {drone_id} reached waypoint {msg.seq}")
+                            self.missionState.handle_reached_waypoint(drone_id, msg.seq)
                     
                     elif msg_type == "MISSION_ITEM":
                             print(f"Received waypoint {msg.seq} from drone {drone_id}: ({msg.x / 1e7}, {msg.y / 1e7}, {msg.z})")
-                    # elif msg_type == "MISSION_CURRENT":
-                    #        print(f"Drone {drone_id} is currently at waypoint {msg.seq} Mission State: {msg.mission_state}")
-
+                    elif msg_type == "MISSION_CURRENT":
+                            # print(f"Current waypoint count for drone {drone_id}: {msg.total}")
+                            self.missionState.handle_mission_state_update(drone_id, msg.mission_state)
 
                 if messages_processed == 0:
                     await asyncio.sleep(0.001)  # Only sleep if no messages were processed
@@ -127,22 +124,31 @@ class Dispatcher:
         self.master.arducopter_arm()
     
     def send_mission(self, drone_id, waypoints):
-        """Upload mission waypoints for a specific drone in a separate thread."""
+        """Stop current mission and upload new waypoints for a specific drone."""
         if not self.master:
             print(f"Cannot upload waypoints: MAVLink is not connected!")
             return
 
-        def mission_thread():
-            asyncio.run(self.upload_mission(drone_id, waypoints))
+        async def mission_task():
+            await self.stop_current_mission(drone_id)  # Stop the current mission
+            await self.upload_mission(drone_id, waypoints)
 
-        threading.Thread(target=mission_thread, daemon=True).start()  # Start in a new thread
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(mission_task())  # Run the coroutine in the existing event loop
+        except RuntimeError:
+            asyncio.run(mission_task())  # If no running loop, start a new one
 
     async def upload_mission(self, drone_id, waypoints):
         """Initiate mission upload using the correct MAVLink protocol."""
         print(f"Uploading mission to drone {drone_id} with {len(waypoints)} waypoints...")
-
+        print(f"Waypoints: {waypoints}")
         #append home waypoint to the mission
-        home_lat, home_lon = self.missionState.drones[drone_id].get_home()
+        drone = self.missionState.get_drone(drone_id)
+        if not drone:
+            print(f"Drone {drone_id} not found.")
+            return
+        home_lat, home_lon = drone.get_home()
         waypoints.insert(0, (home_lat, home_lon, 10, 1)) # add home waypoint to the start of the mission
 
             
@@ -152,6 +158,14 @@ class Dispatcher:
         self.unhandled_clears.append(drone_id)
         await asyncio.sleep(1)  # Allow time for clearing
 
+        self.uploading_missions[drone_id] = {
+            "waypoints": [],  # Clear old waypoints before storing new ones
+            "next_seq": 0,
+            "waiting_for_request": True
+        }
+        self.uploading_missions[drone_id]["waypoints"] = waypoints.copy()
+        print( f"uploading waypoints: {self.uploading_missions[drone_id]["waypoints"]}")
+
         # Send mission count
         mission_count = len(waypoints)
         print(f"Sending MISSION_COUNT for {mission_count} waypoints to drone {drone_id}")
@@ -160,11 +174,7 @@ class Dispatcher:
         await asyncio.sleep(2)  # Allow drone time to process
 
         #Wait for mission requests and respond accordingly
-        self.uploading_missions[drone_id] = {
-            "waypoints": waypoints,
-            "next_seq": 0,
-            "waiting_for_request": True
-        }
+       
 
 
     async def handle_mission_request(self, drone_id, seq):
@@ -389,6 +399,33 @@ class Dispatcher:
 
         print(f"Requesting mission list from drone {drone_id}...")
         self.master.mav.mission_request_list_send(drone_id, 0)
+
+
+    async def stop_current_mission(self, drone_id):
+        """Stop the current mission and set the drone to GUIDED mode."""
+        print(f"Stopping current mission for drone {drone_id}...")
+
+        # Switch to GUIDED mode (manual control to prevent mission resuming)
+        self.master.mav.set_mode_send(
+            drone_id,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            4  # GUIDED mode
+        )
+        
+        if not await self.wait_for_mode(drone_id, "GUIDED"):
+            print(f"Failed to switch drone {drone_id} to GUIDED mode before mission upload!")
+            return
+
+        # Clear current mission
+        print(f"Clearing current mission for drone {drone_id}...")
+        self.master.mav.mission_clear_all_send(drone_id, 0)
+        self.unhandled_clears.append(drone_id)
+
+        await asyncio.sleep(1)  # Allow time for mission clearing
+
+
+    
+   
 
 
 
