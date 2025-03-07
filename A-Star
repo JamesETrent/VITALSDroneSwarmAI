@@ -1,4 +1,8 @@
 
+#TO-DO This is taken from a pre-existing source. Must adapt to not work based off of obstacles, and instead prioritizing grids with higher numbers
+#TO-DO Also make it work with coordinates?
+#TO-DO Create function for getting grid definitions from Aniket and Ricardo's grid work instead of static definitions here
+
 # Python program for A* Search Algorithm
 import math
 import heapq
@@ -20,7 +24,7 @@ class Cell:
         self.h = 0
 
 
-# Define the size of the grid
+# Define the size of the grid (REPLACE WITH IMPORTS)
 ROW = 9
 COL = 10
 
