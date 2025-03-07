@@ -8,8 +8,6 @@ import math
 import heapq
 
 # Define the Cell class
-
-
 class Cell:
     def __init__(self):
       # Parent cell's row index
@@ -24,13 +22,14 @@ class Cell:
         self.h = 0
 
 
-# Define the size of the grid (REPLACE WITH IMPORTS)
+# Define the size of the grid 
+#TO-DO (REPLACE WITH IMPORTS)
 ROW = 9
 COL = 10
 
 # Check if a cell is valid (within the grid)
 
-
+#TO-DO make this the Imported coordinate bounds
 def is_valid(row, col):
     return (row >= 0) and (row < ROW) and (col >= 0) and (col < COL)
 
@@ -170,8 +169,6 @@ def a_star_search(grid, src, dest):
         print("Failed to find the destination cell")
 
 # Driver Code
-
-
 def main():
     # Define the grid (1 for unblocked, 0 for blocked)
     grid = [
