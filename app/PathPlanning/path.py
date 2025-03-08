@@ -33,9 +33,6 @@ def search_grid_with_drones(grid, tree, num_drones):
         highest_priority_cell = max([(i, j) for i in range(GRID_SIZE) for j in range(GRID_SIZE)], key=lambda x: grid[x[0]][x[1]].total_count - heuristic(start, x))
         print(f"Drone {drone_id+1} starts at {start} and is going to {highest_priority_cell}.")
 
-        
-        path = astar(grid, start, highest_priority_cell)
-
         # Mark the visited squares
         #for pos in path:
         #    visited.add(pos)
