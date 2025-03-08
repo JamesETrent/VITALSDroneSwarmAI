@@ -72,6 +72,3 @@ def search_grid_with_drones(grid, tree, num_drones):
         visited.add(highest_priority_cell)
         
         print(f"Drone {drone_id+1} completed its search.")
-
-# Run the drone search on the grid
-search_grid_with_drones(PRIORITY_GRID)
