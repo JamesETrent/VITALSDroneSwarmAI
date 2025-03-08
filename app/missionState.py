@@ -73,8 +73,11 @@ class Drone:
         self.active_job = job
         waypoint_payload = []
         # append waypoints from last waypoint to the end of the list
-        for i in range(self.active_job.last_waypoint, len(self.active_job.waypoints)):
-            waypoint_payload.append(self.active_job.waypoints[i])
+        if self.active_job.last_waypoint > 1:
+            for i in range(self.active_job.last_waypoint, len(self.active_job.waypoints)):
+                waypoint_payload.append(self.active_job.waypoints[i- 1])
+        else:
+            waypoint_payload = self.active_job.waypoints
         # send the waypoints to the drone
         self.missionState.send_waypoints(self.drone_id, waypoint_payload)
         self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
