@@ -2,8 +2,6 @@ from GUI import GUI
 from Dispatcher import Dispatcher
 import asyncio
 import threading
-from TerrainPreProcessing.missionState import grid
-from TerrainPreProcessing.missionState import tree
 import heapq
 
 # Define grid size and priorities
@@ -18,7 +16,9 @@ def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 # A* Search algorithm
-def astar(grid, start, goal):
+'''
+def astar(grid, tree, start, goal):
+    #implement tree
     open_list = []
     heapq.heappush(open_list, (0 + heuristic(start, goal), 0, start))  # f = g + h
     came_from = {}
@@ -47,9 +47,10 @@ def astar(grid, start, goal):
                     heapq.heappush(open_list, (f_cost, tentative_g, neighbor))
     
     return []  # No path found
-
+'''
 # Function to make drones search a grid based on priority
-def search_grid_with_drones(grid, num_drones=4):
+def search_grid_with_drones(grid, tree, num_drones):
+    #get real drone  instead of randomizing
     drone_positions = [(random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1)) for _ in range(num_drones)]
     visited = set()
 
