@@ -91,6 +91,8 @@ class Drone:
     def update_jobs(self, active_job, job_list):
         self.active_job = active_job
         self.job_list = job_list
+        print(f"Active Job: {self.active_job}")
+        print(f"Job List: {self.job_list}")
 
         # Step 1: Clear old widgets
         def clear_widgets():
@@ -105,21 +107,23 @@ class Drone:
                 # add current position to path
                 if self.active_job_start_pos is not None:
                     if self.id_of_job_with_path == active_job.job_id:
-                        trimmed_path.append(self.active_job_start_pos)
+                        trimmed_path.append(self.position)
                     else:
                         self.active_job_start_pos = self.position
                         self.id_of_job_with_path = active_job.job_id
-                        trimmed_path.append(self.active_job_start_pos)
+                        trimmed_path.append(self.position)
                         self.active_job_path.delete()
                 else:
                     self.active_job_start_pos = self.position
                     self.id_of_job_with_path = active_job.job_id
-                    trimmed_path.append(self.active_job_start_pos)
-                for i, waypoint in enumerate(active_job.waypoints):
-                    trimmed_path.append((waypoint[0], waypoint[1]))
+                    trimmed_path.append(self.position)
+                print(f"last visited waypoint: {active_job.last_waypoint}")
+                for i in range(active_job.last_waypoint, len(active_job.waypoints)):
+                    trimmed_path.append((active_job.waypoints[i][0], active_job.waypoints[i][1]))
                 if self.active_job_path is not None:
                     self.active_job_path.delete()
-                self.active_job_path = self.map_widget.set_path(position_list = trimmed_path, width=5, color="green")
+                if len(trimmed_path) > 1:
+                    self.active_job_path = self.map_widget.set_path(position_list = trimmed_path, width=5, color="green")
             else:
                 self.active_job_path.delete()
                 self.active_job_path = None

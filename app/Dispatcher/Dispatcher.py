@@ -29,7 +29,15 @@ class Dispatcher:
         self.unhandled_clears = [] # list of drones that have sent a mission clear command, awaiting ack
         self.waiting_for_takeoff = []
         self.requeted_missions = []
-        
+        self.loop = asyncio.new_event_loop()  # Create a separate event loop for background tasks
+        self.mission_thread = threading.Thread(target=self._run_mission_loop, daemon=True)  
+        self.mission_thread.start()  # Start the background thread
+
+    def _run_mission_loop(self):
+        """Runs an asyncio event loop in a separate thread for mission uploads."""
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
     def connect(self):
         try:
             self.master = mavutil.mavlink_connection('tcp:127.0.0.1:14550', mavlink_version="2.0")
@@ -133,11 +141,7 @@ class Dispatcher:
             await self.stop_current_mission(drone_id)  # Stop the current mission
             await self.upload_mission(drone_id, waypoints)
 
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(mission_task())  # Run the coroutine in the existing event loop
-        except RuntimeError:
-            asyncio.run(mission_task())  # If no running loop, start a new one
+        asyncio.run_coroutine_threadsafe(mission_task(), self.loop)  # Run coroutine in separate event loop
 
     async def upload_mission(self, drone_id, waypoints):
         """Initiate mission upload using the correct MAVLink protocol."""
@@ -423,7 +427,10 @@ class Dispatcher:
 
         await asyncio.sleep(1)  # Allow time for mission clearing
 
-
+    def shutdown(self):
+        """Cleanly stops the background event loop and thread."""
+        self.loop.call_soon_threadsafe(self.loop.stop)
+        self.mission_thread.join()
     
    
 
