@@ -2,12 +2,12 @@ from GUI import GUI
 from Dispatcher import Dispatcher
 import asyncio
 import threading
-from TerrainPreProcessing.missionState import create_job
-from TerrainPreProcessing.visualization import addMissionPolygon
+from TerrainPreProcessing.missionState import grid
+from TerrainPreProcessing.missionState import tree
 import heapq
 
 # Define grid size and priorities
-GRID_SIZE = 10
+GRID_SIZE = grid.size()
 PRIORITY_GRID = [[random.randint(1, 10) for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
 # Directions for moving up, down, left, right
