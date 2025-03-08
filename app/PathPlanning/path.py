@@ -66,28 +66,4 @@ def search_grid_with_drones(grid, tree, num_drones = 4):
             print(f"Drone {drone_id+1} completed its search.")"
     """
     for drone_id in range(num_drones):
-<<<<<<< HEAD
         print(f"Drone ID: {drone_id}, Locations: {precomp_destinations[drone_id]}")
-=======
-        start = drone_positions[drone_id]
-        # Find the highest-priority cell
-        highest_priority_cell = (0,0)
-        for i in range(GRID_SIZE):
-            for j in range(GRID_SIZE):
-                cost = heuristic(start, (i,j))
-                total=
-                
-        distance = ()^(1/2)
-        highest_priority_cell = max([(i, j) for i in range(GRID_SIZE) for j in range(GRID_SIZE)], key=lambda x: grid[x[0]][x[1]].total_count - heuristic(start, x))
-        print(f"Drone {drone_id+1} starts at {start} and is going to {highest_priority_cell}.")
-
-        # Mark the visited squares
-        #for pos in path:
-        #    visited.add(pos)
-        #    print(f"Drone {drone_id+1} visited {pos} with priority {grid[pos[0]][pos[1]]}")
-
-        # Mark the highest priority cell as visited for future drones
-        #visited.add(highest_priority_cell)
-        
-        print(f"Drone {drone_id+1} completed its search.")
->>>>>>> 0ba01055201f271765f57509b10f2521294f87e4
