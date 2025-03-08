@@ -1,6 +1,6 @@
 from .geometry_utils import find_extreme_coordinates, rectangle_side_lengths, add_meters_to_latitude, add_meters_to_longitude, Tile
 from .osmnx_handler import osmnx_load_rtree
-from .postgis_handler import query_osm_features, postgis_load_rtree
+from .postgis_handler import query_osm_features, postgis_load_rtree,query_osm_features_all
 from .visualization import plot_postGIS_data, plot_search_area
 from rtree import index
 from shapely import Polygon
@@ -32,7 +32,7 @@ def get_features(rtree_index, useOSMNX: bool, osmnx_points, postGIS_points, sear
                     print("OSMnx returned no features. Skipping OSMnx processing.")
                     return False  # Prevents crash and allows fallback to PostGIS
 
-                results.plot()
+                #results.plot()
                 print(f"Loaded {len(results)} features into R-tree.")
                 osmnx_load_rtree(rtree_index, search_tags, results)
                 return True
@@ -49,7 +49,7 @@ def get_features(rtree_index, useOSMNX: bool, osmnx_points, postGIS_points, sear
     if not useOSMNX:
         print("Getting information from PostGIS database")
         try:
-            info = query_osm_features(search_tags, postGIS_points)
+            info = query_osm_features_all(search_tags, postGIS_points)
 
             if info is None or not info:
                 print("PostGIS returned no features. Skipping PostGIS processing.")
@@ -148,7 +148,7 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
             search_bb = (b_left[1],b_left[0],t_right[1],t_right[0])
             result = list(rtree_index.intersection(search_bb,objects=True))
             grid[i][j].contains_count = {tag: 0 for tag in search_tags}
-            grid[i][j].contains = {tag: [] for tag in search_tags}
+            grid[i][j].contains = {tag: list() for tag in search_tags}
             for r in result:
                 data = r.object
                 for tag in search_tags:
@@ -157,7 +157,8 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
                         if not pd.isna(data[tag]):
                             #Only increase to the count, and add to the contains if it wasn't nan
                             grid[i][j].contains_count[tag] += 1
-                            grid[i][j].contains[tag].append(data["geometry"])
+                            grid[i][j].contains[tag].append(data[tag])
+                            #grid[i][j].contains[tag].append(data["geometry"])
 
             flipped_coordinates = [(lon, lat) for lat, lon in [t_left,t_right,b_right,b_left]]
             grid[i][j].polygon = Polygon(flipped_coordinates)

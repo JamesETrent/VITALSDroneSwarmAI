@@ -3,7 +3,8 @@ from Dispatcher import Dispatcher
 import asyncio
 import threading
 from TerrainPreProcessing.terrain_queries import create_search_area
-from TerrainPreProcessing.visualization import plot_search_area
+from TerrainPreProcessing.visualization import plot_search_area, plot_advanced, plot_postGIS_data
+
 import heapq
 
 class Drone:
@@ -229,9 +230,19 @@ class missionState:
 
     def addMissionPolygon(self, polygon):
         print("Gotcha!")
-        print(polygon)
+
+        #polygon = [(round(lat, 7), round(lon, 7)) for lat, lon in polygon]
+        #polygon = tuple(polygon)
+        
+
+        #print(f"Original area: {type(polygon[0][0])}") 
+        #polygon = ((28.6055263, -81.2037652), (28.6053378, -81.1950105), (28.5973877, -81.1945813), (28.5971993, -81.2038939))
+        #polygon = tuple(polygon)
+        #print(f"Check area: {type(polygon[0][0])}") 
+        
         rtree, grid = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
-        plot_search_area(rtree,grid, polygon)
+        #plot_advanced(rtree,grid, polygon, {"building": (169,169,169,1), "water":(15, 10, 222,1)})
+        plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
         self.missionGrid = grid
         self.rtree = rtree
         self.missionPolygon = polygon

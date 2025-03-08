@@ -68,6 +68,67 @@ def create_bounding_box(polygon_points):
     transformed_bbox = func.ST_Transform(bounding_box_wkt, 3857)
     return transformed_bbox
 
+def query_osm_features_all(tag_filters, polygon_points, base_columns=None):
+    polygon_features = query_osm_features_advanced(tag_filters, polygon_points, base_columns, table_name="planet_osm_polygon")
+    line_features = query_osm_features_advanced(tag_filters, polygon_points, base_columns, table_name="planet_osm_line")
+    combined_features = polygon_features + line_features
+    return combined_features
+
+def query_osm_features_advanced(tag_filters, polygon_points, base_columns=None, table_name="planet_osm_polygon"):
+    # Dynamically select the table based on the provided table_name.
+    global engine, metadata
+    try:
+        engine = create_engine('postgresql://renderer:renderer@localhost:5432/gis') if engine is None else engine
+        metadata = MetaData(schema="public") if metadata is None else metadata
+        osm_table = Table(table_name, metadata, autoload_with=engine)
+    except OperationalError as e:
+        print(f"Error connecting to PostGIS database: {e}")
+        return None
+            
+    base_columns = base_columns or ["osm_id", "way"]
+    selected_columns = [osm_table.c[col] for col in base_columns if col in osm_table.c]
+    filters = []
+    
+    for tag, condition in tag_filters.items():
+        if tag in osm_table.c:
+            if tag not in base_columns:
+                selected_columns.append(osm_table.c[tag])
+            if condition is True:
+                filters.append(osm_table.c[tag].isnot(None))
+            else:
+                filters.append(osm_table.c[tag] == condition)
+        else:
+            print(f"Warning: '{tag}' is not a column in {table_name}.")
+    
+    spatial_filter = None
+    if polygon_points:
+        bbox = create_bounding_box(polygon_points)
+        spatial_filter = func.ST_Intersects(osm_table.c.way, bbox)
+    
+    stmt = select(*selected_columns)
+    if filters:
+        final_query = and_(spatial_filter, or_(*filters)) if spatial_filter is not None else or_(*filters)
+        stmt = stmt.where(final_query)
+    else:
+        return []
+    
+    with engine.connect() as conn:
+        results = conn.execute(stmt).fetchall()
+    
+    info = []
+    for result in results:
+        shapely_geom = to_shape(result.way)
+        feature = {
+            'osm_id': result.osm_id,
+            'geometry': shapely_geom,
+            **{key: result._mapping[key] for key in tag_filters if key in result._mapping}
+        }
+        # Optionally mark the source
+        feature["source"] = table_name
+        info.append(feature)
+    return info
+
+
 
 def query_osm_features(tag_filters, polygon_points, base_columns=None):
     global engine, metadata, planet_osm_polygon
