@@ -249,6 +249,14 @@ class missionState:
         self.missionGrid = grid
         self.rtree = rtree
         self.missionPolygon = polygon
+        self.doPathPlanning()
+        #Need to calculate the path planning stuff after. 
+
+    def doPathPlanning(self):
+        
+        pass
+
+
 
     def getMissionPolygon(self):
         return self.missionPolygon

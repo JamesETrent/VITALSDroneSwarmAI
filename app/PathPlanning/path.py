@@ -56,21 +56,22 @@ def search_grid_with_drones(grid, num_drones=4):
     for drone_id in range(num_drones):
         start = drone_positions[drone_id]
         # Find the highest-priority cell
-        highest_priority_cell = max([(i, j) for i in range(GRID_SIZE) for j in range(GRID_SIZE)], key=lambda x: grid[x[0]][x[1]])
+        distance = ()^(1/2)
+        highest_priority_cell = max([(i, j) for i in range(GRID_SIZE) for j in range(GRID_SIZE)], key=lambda x: grid[x[0]][x[1]].total_count - heuristic(start, x))
         print(f"Drone {drone_id+1} starts at {start} and is going to {highest_priority_cell}.")
 
         # Use A* to find the path
-        path = astar(grid, start, highest_priority_cell)
+        #path = astar(grid, start, highest_priority_cell)
 
         # Mark the visited squares
-        for pos in path:
-            visited.add(pos)
-            print(f"Drone {drone_id+1} visited {pos} with priority {grid[pos[0]][pos[1]]}")
+        #for pos in path:
+        #    visited.add(pos)
+        #    print(f"Drone {drone_id+1} visited {pos} with priority {grid[pos[0]][pos[1]]}")
 
         # Mark the highest priority cell as visited for future drones
-        visited.add(highest_priority_cell)
+        #visited.add(highest_priority_cell)
         
-        print(f"Drone {drone_id+1} completed its search.")
+        #print(f"Drone {drone_id+1} completed its search.")
 
 # Run the drone search on the grid
 search_grid_with_drones(PRIORITY_GRID)
