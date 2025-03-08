@@ -4,7 +4,7 @@ import asyncio
 import threading
 from TerrainPreProcessing.terrain_queries import create_search_area
 from TerrainPreProcessing.visualization import plot_search_area, plot_advanced, plot_postGIS_data
-
+from PathPlanning.path import search_grid_with_drones
 import heapq
 
 class Drone:
@@ -245,15 +245,16 @@ class missionState:
         
         rtree, grid = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
         #plot_advanced(rtree,grid, polygon, {"building": (169,169,169,1), "water":(15, 10, 222,1)})
-        plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
+        #plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
         self.missionGrid = grid
         self.rtree = rtree
         self.missionPolygon = polygon
         self.doPathPlanning()
+        plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
         #Need to calculate the path planning stuff after. 
 
     def doPathPlanning(self):
-        
+        search_grid_with_drones(self.missionGrid,None)
         pass
 
 

@@ -183,8 +183,11 @@ def plot_postGIS_data(rtree_index, grid = None, search_points = [], colors = {},
                 centroid = tile.polygon.centroid
                 # Annotate with the counts
                 text = ",".join(str(tile.contains_count[key]) for key in tile.contains_count)
-                ax.annotate(text, (centroid.x, centroid.y), color='white', 
-                           fontsize=10, ha='center', va='center', fontweight='bold')
+                #ax.annotate(text, (centroid.x, centroid.y), color='white', 
+                #           fontsize=10, ha='center', va='center', fontweight='bold')
+                position = f"({i},{j})"
+                ax.annotate(position, (centroid.x, centroid.y), color='white', 
+                           fontsize=8, ha='center', va='center', fontweight='bold')
                 # Plot the polygon of each tile
                 x, y = tile.polygon.exterior.xy  # Get the coordinates of the polygon
                 tile_color = mix_tile_colors(tile)

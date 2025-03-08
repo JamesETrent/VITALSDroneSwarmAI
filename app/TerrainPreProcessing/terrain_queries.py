@@ -149,6 +149,7 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
             result = list(rtree_index.intersection(search_bb,objects=True))
             grid[i][j].contains_count = {tag: 0 for tag in search_tags}
             grid[i][j].contains = {tag: list() for tag in search_tags}
+            grid[i][j].total_count = 0
             for r in result:
                 data = r.object
                 for tag in search_tags:
@@ -157,9 +158,10 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
                         if not pd.isna(data[tag]):
                             #Only increase to the count, and add to the contains if it wasn't nan
                             grid[i][j].contains_count[tag] += 1
+                            grid[i][j].total_count += 1
                             grid[i][j].contains[tag].append(data[tag])
                             #grid[i][j].contains[tag].append(data["geometry"])
-
+            #print(f"Total Count: {grid[i][j].total_count}")
             flipped_coordinates = [(lon, lat) for lat, lon in [t_left,t_right,b_right,b_left]]
             grid[i][j].polygon = Polygon(flipped_coordinates)
             grid[i][j].in_searcharea = actual_search_area.intersects(grid[i][j].polygon)

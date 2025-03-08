@@ -14,6 +14,7 @@ class Tile:
         self.contains = {}
         self.contains_count = {}
         self.in_searcharea = True
+        self.total_count = 0
 
 
 def haversine(lat1, lon1, lat2, lon2):
