@@ -243,18 +243,21 @@ class missionState:
         #polygon = tuple(polygon)
         #print(f"Check area: {type(polygon[0][0])}") 
         
-        rtree, grid = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
+        rtree, grid, viable_grid_positions = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
         #plot_advanced(rtree,grid, polygon, {"building": (169,169,169,1), "water":(15, 10, 222,1)})
         #plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
         self.missionGrid = grid
+        self.viable_grid_positions = viable_grid_positions
         self.rtree = rtree
         self.missionPolygon = polygon
         self.doPathPlanning()
-        plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
+        #plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
         #Need to calculate the path planning stuff after. 
 
     def doPathPlanning(self):
-        search_grid_with_drones(self.missionGrid,None)
+        #pass the grid, current_drone_positions(In ID Order, long-lat pairs), and number of drones(If you don't pass the drone positions)
+        self.drone_search_destinations = search_grid_with_drones(self.missionGrid,None,self.viable_grid_positions,4)
+
         pass
 
 

@@ -119,9 +119,9 @@ def create_search_area(polygon_points, search_tags, useOSMX = True,maximum_squar
         print("unable to create a search area")
         return None,None
 
-    fill_grid_data(rtree_index, grid, top_left, square_size, search_tags, postGIS_points)
+    viable_grid_positions = fill_grid_data(rtree_index, grid, top_left, square_size, search_tags, postGIS_points)
 
-    return rtree_index, grid
+    return rtree_index, grid, viable_grid_positions
     # Generate tiles and fetch OSM features
 
 
@@ -132,6 +132,7 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
     t_left = [0,0]
     b_right = [0,0]
     actual_search_area = Polygon(postGIS_points)
+    viable_grid_positions = []
     for i in range(len(grid)):
         t_left[0] = top_left[0] if i == 0 else add_meters_to_latitude(top_left[0],(i*(-square_size)))
         b_right[0] = add_meters_to_latitude(top_left[0],((i+1)*(-square_size)))
@@ -166,5 +167,8 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
             grid[i][j].polygon = Polygon(flipped_coordinates)
             grid[i][j].in_searcharea = actual_search_area.intersects(grid[i][j].polygon)
             count+= 1
+            if grid[i][j].in_searcharea and grid[i][j].total_count > 0:
+                viable_grid_positions.append((i,j))
             #print(f'{t_left[0]},{t_left[1]},#00FF00,marker,"Point #{i},{j} T_L"')
             #print(f'{b_right[0]},{b_right[1]},#00FF00,marker,"Point #{i},{j} B_R"')
+    return viable_grid_positions
