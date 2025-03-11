@@ -14,6 +14,7 @@ custom_labels = model.names  # This pulls the correct labels from the model
 # Debug: Print the actual labels used by your model
 print("Loaded Labels:", custom_labels)
 
+
 # Define subfolder name based on model type
 if "11C" in model_path:
     subfolder_name = "yolov11Custom"
