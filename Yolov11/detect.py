@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 # Specify the model path (either yolov11Custom.pt or rf3v1.pt)
-model_path = "Custom Models/yolov11Custom.pt"  # Change this to the desired model 
+model_path = "Custom Model/yolov11Custom.pt"  # Change this to the desired model 
 
 # Load the YOLOv11 model
 model = YOLO(model_path)
