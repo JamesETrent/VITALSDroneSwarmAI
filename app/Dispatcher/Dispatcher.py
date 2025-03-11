@@ -110,6 +110,8 @@ class Dispatcher:
                     elif msg_type == "MISSION_CURRENT":
                             # print(f"Current waypoint count for drone {drone_id}: {msg.total}")
                             self.missionState.handle_mission_state_update(drone_id, msg.mission_state)
+                    elif msg_type == "CAMERA_TRIGGER":
+                            print(f"Camera triggered by drone {drone_id} at time {msg.time_usec}")
 
                 if messages_processed == 0:
                     await asyncio.sleep(0.001)  # Only sleep if no messages were processed

@@ -1,3 +1,5 @@
+from datetime import datetime
+import os
 import PIL.Image
 import PIL.ImageTk
 import customtkinter
@@ -5,7 +7,7 @@ import tkintermapview
 import ollama
 import ast
 import math
-#from langChainMain import call_llm
+from LangGraph import langChainMain
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -199,18 +201,23 @@ class POIInfoBox(customtkinter.CTkFrame):
         self.coordinates_label = customtkinter.CTkLabel(self.poi_info, text=f"Coordinates: ({lat:.4f}, {lon:.4f})", font=("Arial", 10), fg_color="#337ab7")
         self.coordinates_label.grid(row=1, column=0, columnspan=2, sticky="w", padx=5)
     
-    
-
 
 class ChatSidebar(customtkinter.CTkFrame):
-    def __init__(self, parent, **kwargs):
+    def __init__(self, parent, gui_ref, **kwargs):
         super().__init__(parent, **kwargs)
 
         # Set a fixed width for the chat sidebar
         self.configure(width=300)
 
+        # Reference to the main GUI
+        self.gui_ref = gui_ref
+        
+
+        # Thread Executor for LLM Calls
+        self.executor = ThreadPoolExecutor()
+
         # Grid Configuration (Ensures Resizing Behavior)
-        self.grid_columnconfigure(0, weight=1)  # Allows horizontal expansion
+        self.grid_columnconfigure(0, weight=1)  # Sidebar width fixed
         self.grid_rowconfigure(1, weight=1)  # Chat area expands
         self.grid_rowconfigure(2, weight=0)  # Input area stays fixed
 
@@ -218,20 +225,34 @@ class ChatSidebar(customtkinter.CTkFrame):
         chat_label = customtkinter.CTkLabel(self, text="Chat", font=("Arial", 20))
         chat_label.grid(row=0, column=0, pady=10, padx=10, sticky="n")
 
-        # Scrollable chat area (Expands with resizing)
-        self.chat_area = customtkinter.CTkTextbox(self, wrap="word", state="disabled", height=400)
-        self.chat_area.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        # Scrollable chat area using a Canvas
+        self.chat_canvas = customtkinter.CTkCanvas(self, height=400, width=280, bg="#2B2B2B",highlightthickness=0)
+        self.chat_canvas.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
 
-        # Input frame (Ensures input field stays visible)
+        # Scrollbar for chat messages
+        self.scrollbar = customtkinter.CTkScrollbar(self, command=self.chat_canvas.yview)
+        self.scrollbar.grid(row=1, column=1, sticky="ns")
+        self.chat_canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        # Message frame inside the canvas with a fixed width
+        self.message_frame = customtkinter.CTkFrame(self.chat_canvas, width=280)
+        self.message_window = self.chat_canvas.create_window((0, 0), window=self.message_frame, anchor="nw", width=280)
+
+        # Configure message_frame grid for two columns
+        self.message_frame.grid_columnconfigure(0, weight=1)  # Left column (LLM)
+        self.message_frame.grid_columnconfigure(1, weight=1)  # Right column (User)
+
+        # Track the current row
+        self.current_row = 0
+
+        # Input frame
         input_frame = customtkinter.CTkFrame(self)
-        input_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")  # Forces it to be visible
-
-        # Ensure input field expands horizontally
+        input_frame.grid(row=2, column=0, padx=10, pady=10, sticky="ew")
         input_frame.grid_columnconfigure(0, weight=1)
 
         # Input field
         self.input_field = customtkinter.CTkEntry(input_frame, placeholder_text="Type a message...")
-        self.input_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))  # Expands with resizing
+        self.input_field.grid(row=0, column=0, sticky="ew", padx=(0, 10))
 
         # Load the send button icon
         send_icon = self._load_icon("./assets/send.png")
@@ -240,59 +261,101 @@ class ChatSidebar(customtkinter.CTkFrame):
         send_button = customtkinter.CTkButton(
             input_frame, 
             image=send_icon, 
-            text="",  # Remove text
+            text="", 
             width=20, 
             height=20, 
-            command=None  # self.send_message
+            command=self.send_message
         )
-        send_button.image = send_icon  # Keep a reference to avoid garbage collection
-        send_button.grid(row=0, column=1)  # Place it on the right
+        send_button.image = send_icon
+        send_button.grid(row=0, column=1)
+
+        # Bind mousewheel scrolling
+        self.chat_canvas.bind("<Configure>", self.on_canvas_configure)
+        self.chat_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
 
     def _load_icon(self, path):
         """Load and resize an icon."""
         image = PIL.Image.open(path)
-        image = image.resize((20, 20))  # Resize the icon
-        return customtkinter.CTkImage(image)
-    
-    def send_message(self):
-        
-        # Get user input
-        user_message = self.input_field.get()
+        image = image.resize((20, 20))
+        return customtkinter.CTkImage(light_image=image, dark_image=image)
 
-        # Clear the input field
+    def on_canvas_configure(self, event=None):
+        """Update the scroll region when new messages are added."""
+        self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
+
+    def on_mouse_wheel(self, event):
+        """Allow scrolling with the mouse wheel."""
+        self.chat_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+    def add_message_bubble(self, text, sender="user"):
+        """Create and add a message bubble to the chat."""
+        bubble = customtkinter.CTkLabel(
+            self.message_frame,
+            text=text,
+            wraplength=120,  # Increase this if necessary
+            corner_radius=15,
+            fg_color=("#3b82f6" if sender == "user" else "#e5e5e5"),
+            text_color=("white" if sender == "user" else "black"),
+            padx=0,  # Ensure proper horizontal padding
+            pady=5
+        )
+
+        # Align user messages to the right, LLM messages to the left
+        bubble.grid(
+            row=self.current_row,
+            column=0 if sender == "llm" else 1, 
+            sticky="w" if sender == "llm" else "e",
+            padx=0, pady=2
+        )
+        bubble.configure(width=290)
+        # Force columns to maintain a fixed size
+        self.message_frame.grid_columnconfigure(0, weight=1, minsize=140)  # LLM messages
+        self.message_frame.grid_columnconfigure(1, weight=1, minsize=140)  # User messages
+
+        # Increment row after each message
+        self.current_row += 1
+
+        self.message_frame.update_idletasks()
+        self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
+        self.chat_canvas.yview_moveto(1)  # Scroll to the bottom
+
+
+
+    def send_message(self):
+        """Handle sending a message and updating the chat."""
+        user_message = self.input_field.get().strip()
         self.input_field.delete(0, "end")
 
-        if user_message.strip():
-            # Append the message to the chat area
-            self.chat_area.configure(state="normal")  # Enable text widget
-            self.chat_area.insert("end", f"You: {user_message}\n")
-            self.chat_area.configure(state="disabled")  # Disable text widget to prevent user edits
-            self.chat_area.see("end")  # Scroll to the bottom of the chat area
-        
-        # Call the LLM with the user message
-        # get reference to the map page
-        polygon_points = self.master.get_polygon_points()
-        drones = self.master.get_drones()
-        #get polygon points
-        
-        def on_complete(future):
-            response = future.result()
-            #print(response)
-            self.chat_area.configure(state="normal")
-            self.chat_area.insert("end", f"LLM: {response}\n")
-            self.chat_area.configure(state="disabled")
-            self.chat_area.see("end")
-            available_functions = {'create_drone_job': self.master.create_drone_job}
-            for tool in response.tool_calls or []:
-                function_to_call = available_functions.get(tool.function.name)
-                if function_to_call:
-                    function_to_call(**tool.function.arguments)
-                else:
-                    print(f"Function {tool.function_name} not found")
-            
-        
-        #future= self.executor.submit(call_llm, user_message, polygon_points, drones )
-        #future.add_done_callback(on_complete)
+        if user_message:
+            # Add user message bubble
+            self.add_message_bubble(f"You: {user_message}", sender="user")
+
+            # Call the LLM with user input
+            polygon_points = self.master.get_polygon_points()
+            drones = self.gui_ref.missionState.getDrones()
+            pois = self.gui_ref.missionState.getPOIs()
+
+            def call_create_poi_investigate_job(poi_id, drone_id, priority=5):
+                self.gui_ref.missionState.create_poi_investigate_job(poi_id, drone_id, priority)
+            def call_return_to_launch(drone_id):
+                self.gui_ref.missionState.call_drone_home(drone_id)
+
+            def on_complete(future):
+                available_tools = {'create_poi_investigate_job' : call_create_poi_investigate_job,
+                                   'call_return_to_launch' : call_return_to_launch}
+                response = future.result()
+                self.chat_canvas.after(100, lambda: self.add_message_bubble(f"LLM: {response}", sender="llm"))
+                # Process the toolcalls
+                if response.tool_calls:
+                    for tool_call in response.tool_calls:
+                        if tool_call.function.name in available_tools:
+                            print(f"Calling tool: {tool_call.function.name}")
+                            result = available_tools[tool_call.function.name](**tool_call.function.arguments)
+                        else:
+                            print(f"Tool {tool_call.function.name} not found")
+
+            future = self.executor.submit(langChainMain.call_llm, user_message, polygon_points, drones, pois)
+            future.add_done_callback(on_complete)
 
 class jobInfoContainer(customtkinter.CTkFrame):
     def __init__(self, parent, drone_id):
@@ -363,9 +426,9 @@ class DroneInfoBox(customtkinter.CTkFrame):
         self.heading_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=5)
     
     def updatePos(self, position, altitude, velocity, heading):
-        self.position_label.configure(text=f"Position: {position}")
+        self.position_label.configure(text=f"Position: {position[0]:.7f}, {position[1]:.7f}")
         self.altitude_label.configure(text=f"Altitude: {altitude / 1000} m")
-        self.velocity_label.configure(text=f"Velocity: {velocity}")
+        self.velocity_label.configure(text=f"Velocity: {velocity:.2f}")
         self.heading_label.configure(text=f"Heading: {heading}")
     
     def updateStatus(self, status):
@@ -472,7 +535,7 @@ class MapPage(customtkinter.CTkFrame):
         self.map_widget.add_right_click_menu_command(label="Create POI", command=self.create_test_poi, pass_coords=True)
 
         # Collapsible right sidebar
-        self.collapsible_sidebar = ChatSidebar(self)
+        self.collapsible_sidebar = ChatSidebar(self, self.gui_ref)
         self.collapsible_sidebar.grid(row=0, column=2, sticky="nsew")
 
         #POI Info Frame
@@ -485,6 +548,9 @@ class MapPage(customtkinter.CTkFrame):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
+    def set_missionID(self, mission_id):
+        self.mission_id = mission_id
+        self.missionState.set_missionID(mission_id)
     def open_debug_popup(self):
         if self.debug_window is not None and self.debug_window.winfo_exists():
             self.debug_window.lift()  # Bring to front if already open
@@ -538,6 +604,9 @@ class MapPage(customtkinter.CTkFrame):
 
         btn_add_test_job = customtkinter.CTkButton(self.debug_window, text="Add Test Job", command=self.gui_ref.call_create_test_job)
         btn_add_test_job.pack(pady=5)
+
+        btn_investigate_poi = customtkinter.CTkButton(self.debug_window, text="Investigate POI", command=self.gui_ref.call_investigate_poi)
+        btn_investigate_poi.pack(pady=5)
 
         btn_close = customtkinter.CTkButton(self.debug_window, text="Close", command=self.close_debug_popup)
         btn_close.pack(pady=10)
@@ -633,16 +702,12 @@ class MapPage(customtkinter.CTkFrame):
     def get_polygon_points(self):
         return self.polygon_points
 
-    def get_drones(self):
-        payload = []
-        for drone in self.drones:
-            payload.append({"id": drone.id, "battery": drone.battery, "lat": drone.position[0], "lon": drone.position[1]})
-        return payload
     
     def add_poi(self, lat, lon, name):
         poi_count = len(self.pois) + 1
         poi = POI(lat, lon, name, self.map_widget, self.poi_info_container, poi_count)
         self.pois.append(poi)
+        self.gui_ref.callAddPoiInMissionState(poi)
     
     def create_test_poi(self, coords):
         poi_count = len(self.pois) + 1
@@ -666,6 +731,7 @@ class HomePage(customtkinter.CTkFrame):
         )
         switch_button.pack(pady=10)
         mission_review_button.pack(pady=10)
+
 
 class JobWaypoint:
     def __init__(self, lat, lon, waypointNum, map_widget):
@@ -699,6 +765,12 @@ class GUI:
         self.home_page.pack(fill="both", expand=True)
 
     def show_map_page(self):
+        currentDateTime = datetime.now()
+        print("Current date and time:", currentDateTime)
+        mission_id = currentDateTime.strftime('%Y-%m-%d_%H-%M-%S')
+        # Create Mission Folder
+        os.makedirs(f"missions/{mission_id}", exist_ok=True)
+        self.map_page.gui_ref.missionState.set_missionID(mission_id)
         self.home_page.pack_forget()
         self.map_page.pack(fill="both", expand=True)
 
@@ -740,6 +812,15 @@ class GUI:
         drone = next((drone for drone in self.map_page.drones if drone.id == drone_id), None)
         if drone is not None:
             drone.update_jobs(active_job, job_list)
+    
+    def callAddPoiInMissionState(self, poi):
+        self.missionState.addPOI(poi)
+    
+    def addPOI(self, poi):
+        #check if poi is already in the list
+        if poi not in self.map_page.pois:
+            self.map_page.add_poi(poi.lat, poi.lon, poi.name)
+
     
     
 
@@ -786,6 +867,13 @@ class GUI:
 
     def finish_creating_job(self):
         pass
+    def call_investigate_poi(self):
+        drone_id = self.map_page.get_target_debug_drone()
+        poi_id = self.map_page.get_debug_waypoints()
+
+        self.missionState.create_poi_investigate_job(poi_id, drone_id)
+
+    
     
     
 

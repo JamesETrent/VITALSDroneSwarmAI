@@ -1,3 +1,4 @@
+import os
 from GUI import GUI
 from Dispatcher import Dispatcher
 import asyncio
@@ -23,6 +24,7 @@ class Drone:
     jobQueue = None
     active_job = None
     last_mission_state = None
+    available = True
 
     def __init__(self, missionState, drone_id, system_status):
         self.missionState = missionState
@@ -126,7 +128,21 @@ class Drone:
             self.active_job.last_waypoint = waypoint
             self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
             
-
+    def setDroneUnavailable(self):
+        self.available = False
+        #  push active job to the back of the queue
+        if self.active_job is not None:
+            self.jobQueue.add_job(self.active_job)
+            self.active_job = None
+            self.missionState.gui.updateJobs(self.drone_id, self.active_job, self.jobQueue.queue)
+    
+    def setDroneAvailable(self):
+        self.available = True
+        #  if there is a job in the queue, set it as the active job
+        if not self.jobQueue.is_empty():
+            next_job = self.jobQueue.get_next_job()
+            self.setActiveJob(next_job)
+        
 
 
 
@@ -187,6 +203,7 @@ class missionState:
 
     def __init__(self, gui):
         self.drones = []
+        self.pois = []
         self.missionPolygon = None
         self.mavLinkConnected = False
         self.gui = gui
@@ -334,6 +351,63 @@ class missionState:
     
     def get_drone(self, drone_id):
         return next((d for d in self.drones if d.drone_id == drone_id), None)
+    
+    def getDrones(self):
+        """returns drone list in a readable format for llm"""
+        drone_list = []
+        for drone in self.drones:
+            drone_list.append({
+                "drone_id": drone.drone_id,
+                "system_status": drone.system_status,
+                "latitude": drone.latitude,
+                "longitude": drone.longitude,
+                "altitude": drone.altitude,
+                "relative_altitude": drone.relative_altitude,
+                "heading": drone.heading,
+                "vx": drone.vx,
+                "vy": drone.vy,
+                "vz": drone.vz
+            })
+        return drone_list
+    def getPOIs(self):
+        """returns poi list in a readable format for llm"""
+        poi_list = []
+        for poi in self.pois:
+            poi_list.append({
+                "lat": poi.lat,
+                "lon": poi.lon,
+                "name": poi.name,
+                "id": poi.id,
+            })
+        return poi_list
+    
+    def addPOI(self, poi):
+        #create POI directory in mission folder
+        os.makedirs(f"Missions/{self.missionID}/POIs/{poi.id}", exist_ok=True)
+        self.pois.append(poi)
+        self.gui.addPOI(poi)
+
+    
+    def create_poi_investigate_job(self, poi_id, drone_id, priority = 5):
+        print(f"Creating POI investigate job for drone {drone_id} and poi {poi_id}")
+    
+        poi = next((p for p in self.pois if p.id == int(poi_id)), None)
+        print(f"POI: {poi}")
+        if poi is not None:
+            drone = next((d for d in self.drones if d.drone_id == int(drone_id)), None)
+            if drone is not None:
+                job = Job(f"Investigate POI {poi.id} ", "pending", [(poi.lat, poi.lon, 10, 2)], self, priority)
+                drone.addJob(job)
+    
+    def call_drone_home(self, drone_id):
+        drone = next((d for d in self.drones if d.drone_id == int(drone_id)), None)
+        if drone is not None:
+            drone.setDroneUnavailable()
+            self.dispatcher.return_to_launch(int(drone_id))
+    
+    def set_missionID(self, id):
+        self.missionID = id
+
 
         
 
