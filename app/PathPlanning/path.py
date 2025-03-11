@@ -15,32 +15,36 @@ def heuristic(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
 # Function to make drones search a grid based on priority
-def search_grid_with_drones(grid, tree, num_drones = 4):
+def search_grid_with_drones(grid, drone_positions = None, viable_grid_positions = None, num_drones = 4):
     GRID_SIZE = len(grid)
     #get real drone  instead of randomizing
-    drone_positions = [(random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1)) for _ in range(num_drones)]
-    visited = set()
-    precomp_destinations = {x: [] for x in range(num_drones)}
+    if not drone_positions:
+        drone_positions = [(random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1)) for _ in range(num_drones)]
+    precomp_destinations = {x: [] for x in range(len(drone_positions))}
 
-    potential_search_areas = []
-    #Inefficient, but works for now. 
-    for i in range(len(grid)):
-        for j in range(len(grid[0])):
-            print(f"Test:({i},{j}) - InArea:{grid[i][j].in_searcharea}, Priority: {grid[i][j].contains_count}")
-            if(not grid[i][j].in_searcharea or grid[i][j].total_count == 0):
-                continue
-            potential_search_areas.append((i,j))
+    if not viable_grid_positions:
+        viable_grid_positions = []
+        #Inefficient, but works for now. 
+        for i in range(len(grid)):
+            for j in range(len(grid[0])):
+                #print(f"Test:({i},{j}) - InArea:{grid[i][j].in_searcharea}, Priority: {grid[i][j].contains_count}")
+                if(not grid[i][j].in_searcharea or grid[i][j].total_count == 0):
+                    continue
+                viable_grid_positions.append((i,j))
 
-    print(f"Potential Search Areas: {len(potential_search_areas)}")
+    #print(f"Potential Search Areas: {len(viable_grid_positions)}")
 
-    while(len(potential_search_areas) > 0):
-        for drone_id in range(num_drones):
-            if(len(potential_search_areas) == 0):
+    while(len(viable_grid_positions) > 0):
+        for drone_id in range(len(drone_positions)):
+            if(len(viable_grid_positions) == 0):
                 break
             start = drone_positions[drone_id]
-            highest_priority_cell = max(potential_search_areas, key=lambda x: grid[x[0]][x[1]].total_count*10 - heuristic(start, x))
-            precomp_destinations[drone_id].append(highest_priority_cell)
-            potential_search_areas.remove(highest_priority_cell)
+            highest_priority_cell = max(viable_grid_positions, key=lambda x: grid[x[0]][x[1]].total_count*10 - heuristic(start, x))
+            
+            cell_coordinate = grid[highest_priority_cell[0]][highest_priority_cell[1]].polygon.centroid
+
+            precomp_destinations[drone_id].append(cell_coordinate)
+            viable_grid_positions.remove(highest_priority_cell)
 
     """
     while len(visited) < GRID_SIZE*GRID_SIZE:
@@ -65,5 +69,6 @@ def search_grid_with_drones(grid, tree, num_drones = 4):
             
             print(f"Drone {drone_id+1} completed its search.")"
     """
-    for drone_id in range(num_drones):
+    for drone_id in range(len(drone_positions)):
         print(f"Drone ID: {drone_id}, Locations: {precomp_destinations[drone_id]}")
+    return precomp_destinations
