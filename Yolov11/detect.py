@@ -2,8 +2,8 @@ from ultralytics import YOLO
 import json
 from pathlib import Path
 
-# Specify the model path (either yolov11Custom.pt or rf3.pt)
-model_path = "yolov11Custom.pt"  # Change this to the desired model 
+# Specify the model path (either yolov11Custom.pt or rf3v1.pt)
+model_path = "Custom Models/yolov11Custom.pt"  # Change this to the desired model 
 
 # Load the YOLOv11 model
 model = YOLO(model_path)
@@ -15,18 +15,12 @@ custom_labels = model.names  # This pulls the correct labels from the model
 print("Loaded Labels:", custom_labels)
 
 # Define subfolder name based on model type
-if "11n" in model_path:
-    subfolder_name = "yolo11n"
-elif "11m" in model_path:
-    subfolder_name = "yolo11m"
-elif "11l" in model_path:
-    subfolder_name = "yolo11l"
-elif "llC" in model_path:
+if "11C" in model_path:
     subfolder_name = "yolov11Custom"
 elif "rf3" in model_path:
-    subfolder_name = "rf3"
+    subfolder_name = "rf3v1"
 else:
-    subfolder_name = "other_runs"  # Fallback if no match is found
+    subfolder_name = "other_runs"  #no match is found
 
 # Create unique directories for JSON and video files
 base_json_dir = Path("runs/") / subfolder_name / "jsonfile"
