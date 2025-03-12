@@ -32,9 +32,21 @@ class Drone:
         self.job_list = []
         self.active_job_path = None
         self.active_job_start_pos = None
+        self.showing_active_job_path = False
         self.id_of_job_with_path = None
         self.info_widget = DroneInfoBox(info_container, drone_id)
         self.job_info_container = jobInfoContainer(job_container, drone_id)
+        match drone_id:
+            case 1:
+                self.color = "red"
+            case 2:
+                self.color = "blue"
+            case 3:
+                self.color = "green"
+            case 4:
+                self.color = "yellow"
+            case _:
+                self.color = "gray"
 
     
     def setPosition(self, lat, lon, altitude, relative_altitude, heading, vx, vy, vz):
@@ -104,28 +116,29 @@ class Drone:
             
             # Step 2: Add new jobs only if they exist
             if active_job:
-                jobInfoItem(self.job_info_container.job_scrollable_frame, active_job, 0, active=True)
-                trimmed_path = []
-                # add current position to path
-                if self.active_job_start_pos is not None:
-                    if self.id_of_job_with_path == active_job.job_id:
-                        trimmed_path.append(self.position)
+                jobInfoItem(self.job_info_container.job_scrollable_frame, active_job, 0, self, active=True )
+                if self.showing_active_job_path:
+                    trimmed_path = []
+                    # add current position to path
+                    if self.active_job_start_pos is not None:
+                        if self.id_of_job_with_path == active_job.job_id:
+                            trimmed_path.append(self.position)
+                        else:
+                            self.active_job_start_pos = self.position
+                            self.id_of_job_with_path = active_job.job_id
+                            trimmed_path.append(self.position)
+                            self.active_job_path.delete()
                     else:
                         self.active_job_start_pos = self.position
                         self.id_of_job_with_path = active_job.job_id
                         trimmed_path.append(self.position)
+                    print(f"last visited waypoint: {active_job.last_waypoint}")
+                    for i in range(active_job.last_waypoint, len(active_job.waypoints)):
+                        trimmed_path.append((active_job.waypoints[i][0], active_job.waypoints[i][1]))
+                    if self.active_job_path is not None:
                         self.active_job_path.delete()
-                else:
-                    self.active_job_start_pos = self.position
-                    self.id_of_job_with_path = active_job.job_id
-                    trimmed_path.append(self.position)
-                print(f"last visited waypoint: {active_job.last_waypoint}")
-                for i in range(active_job.last_waypoint, len(active_job.waypoints)):
-                    trimmed_path.append((active_job.waypoints[i][0], active_job.waypoints[i][1]))
-                if self.active_job_path is not None:
-                    self.active_job_path.delete()
-                if len(trimmed_path) > 1:
-                    self.active_job_path = self.map_widget.set_path(position_list = trimmed_path, width=5, color="green")
+                    if len(trimmed_path) > 1:
+                        self.active_job_path = self.map_widget.set_path(position_list = trimmed_path, width=5, color=self.color)
             else:
                 self.active_job_path.delete()
                 self.active_job_path = None
@@ -139,6 +152,26 @@ class Drone:
         # Use `after` to avoid accessing destroyed widgets immediately
         self.map_widget.after(100, clear_widgets)
 
+    def toggle_show_active_job_path(self):
+        if self.active_job_path is not None:
+            self.active_job_path.delete()
+            self.active_job_path = None
+        else:
+            # Recreate the path if needed
+            if self.active_job is not None:
+                trimmed_path = []
+                # add current position to path
+                if self.active_job_start_pos is not None:
+                    trimmed_path.append(self.position)
+                else:
+                    self.active_job_start_pos = self.position
+                    trimmed_path.append(self.position)
+                for i in range(self.active_job.last_waypoint, len(self.active_job.waypoints)):
+                    trimmed_path.append((self.active_job.waypoints[i][0], self.active_job.waypoints[i][1]))
+                if len(trimmed_path) > 1:
+                    self.active_job_path = self.map_widget.set_path(position_list = trimmed_path, width=5, color=self.color)
+            
+
 
 
 class Job:
@@ -149,13 +182,16 @@ class Job:
         path_obj = path_obj
 
 class POI:
-    def __init__(self, lat, lon, name, map_widget, info_container, poi_count):
+    def __init__(self, lat, lon, name,description, map_widget, info_container, poi_count, gui_ref):
         self.map_widget = map_widget
+        self.gui_ref = gui_ref
         self.info_container = info_container
         self.id = poi_count
         self.lat = lat
         self.lon = lon
-        self.name = name
+        self.name = f"poi {poi_count}"
+        self.positive_flags  = 0
+        self.description = description
         self.marker = map_widget.set_marker(lat, lon, text=name, command=self.open_popup)
         self.info_widget = POIInfoBox(info_container, name, lat, lon, poi_count, popup_func=self.open_popup)
         
@@ -164,7 +200,7 @@ class POI:
         # Create a new window
         self.popup = customtkinter.CTkToplevel(self.info_container)
         self.popup.title(self.name)
-        self.popup.geometry("300x200")
+        self.popup.geometry("300x500")
 
         #push the popup to the front
         self.popup.lift()
@@ -177,8 +213,34 @@ class POI:
         name_label.pack(pady=10)
         coordinates_label = customtkinter.CTkLabel(self.popup, text=f"Coordinates: ({self.lat:.4f}, {self.lon:.4f})", font=("Arial", 12))
         coordinates_label.pack(pady=10)
-        description_label = customtkinter.CTkLabel(self.popup, text="Description: This is a POI.", font=("Arial", 12))
-        description_label.pack(pady=10)
+        if self.description:
+            description_label = customtkinter.CTkLabel(self.popup, text=f"Description: {self.description}", wraplength=500, font=("Arial", 12))
+            description_label.pack(pady=10)
+        else:
+            description_label = customtkinter.CTkLabel(self.popup, text="Description: No description available.", font=("Arial", 12))
+            description_label.pack(pady=10)
+        #load all images in the poi folder
+        # Add images if they exist
+        mission_id = self.gui_ref.missionState.get_missionID()
+        image_folder = f"./Missions/{mission_id}/POIs/{self.id}/"
+        if os.path.exists(image_folder):
+            for filename in os.listdir(image_folder):
+                if filename.endswith(".jpg") or filename.endswith(".png"):
+                    image_path = os.path.join(image_folder, filename)
+                    print(f"image_path  loading popup: {image_path}")
+                    image = PIL.Image.open(image_path)
+                    image = image.resize((300, 300))
+                    photo = customtkinter.CTkImage(image, size=(300, 300))
+                    image_label = customtkinter.CTkLabel(self.popup, image=photo, text="", width=300, height=300)
+                    image_label.pack(pady=10)
+        else:
+            no_image_label = customtkinter.CTkLabel(self.popup, text="No images available.", font=("Arial", 12))
+            no_image_label.pack(pady=10)
+        # Add description if it exists
+        # Add a separator
+        separator = customtkinter.CTkLabel(self.popup, text="", height=2)
+        separator.pack(fill="x", pady=10)
+        
         
 
         # Add a close button
@@ -337,14 +399,16 @@ class ChatSidebar(customtkinter.CTkFrame):
 
             def call_create_poi_investigate_job(poi_id, drone_id, priority=5):
                 self.gui_ref.missionState.create_poi_investigate_job(poi_id, drone_id, priority)
+                self.add_message_bubble(f"LLM: sending drone {drone_id} to investigate POI {poi_id}", sender="llm")
             def call_return_to_launch(drone_id):
                 self.gui_ref.missionState.call_drone_home(drone_id)
+                self.add_message_bubble(f"LLM: Sending drone {drone_id} to launch.", sender="llm")
+
 
             def on_complete(future):
                 available_tools = {'create_poi_investigate_job' : call_create_poi_investigate_job,
                                    'call_return_to_launch' : call_return_to_launch}
                 response = future.result()
-                self.chat_canvas.after(100, lambda: self.add_message_bubble(f"LLM: {response}", sender="llm"))
                 # Process the toolcalls
                 if response.tool_calls:
                     for tool_call in response.tool_calls:
@@ -372,7 +436,9 @@ class jobInfoContainer(customtkinter.CTkFrame):
         self.job_scrollable_frame.pack(fill="both", expand=True)
 
 class jobInfoItem(customtkinter.CTkFrame):
-    def __init__(self, parent, job, row, active=False):
+    def __init__(self, parent, job, row, drone=None, active=False,):
+        self.drone = drone
+        self.active = active
         # Create the job info frame
         if active:
             self.job_info = customtkinter.CTkFrame(parent, fg_color="#337ab7")
@@ -395,7 +461,13 @@ class jobInfoItem(customtkinter.CTkFrame):
         self.job_priority_label = customtkinter.CTkLabel(self.job_info, text=f"Priority: {job.job_priority}", font=("Arial", 10))
         self.job_priority_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=5)
 
+        #bind click to call  toggle_show_active_job_path() on the drone object
+        self.job_info.bind("<Button-1>", self.call_toggle_if_active)
 
+    def call_toggle_if_active(self, event):
+            self.drone.toggle_show_active_job_path()
+            self.drone.showing_active_job_path = not self.drone.showing_active_job_path
+        
         
         
 class DroneInfoBox(customtkinter.CTkFrame):
@@ -490,20 +562,25 @@ class MapPage(customtkinter.CTkFrame):
         )
         self.connect_button.grid(row=2, column=0, pady=10, padx=20, sticky="w")
 
+        self.end_mission_button = customtkinter.CTkButton(
+            self.sidebar, text="End Mission", command=self.gui_ref.call_end_mission
+        )
+        self.end_mission_button.grid(row=3, column=0, pady=10, padx=20, sticky="w")
+
         self.debug_button = customtkinter.CTkButton(
             self.sidebar, text="Debug Menu", command=self.open_debug_popup
         )
-        self.debug_button.grid(row=3, column=0, pady=10, padx=20, sticky="w")
+        self.debug_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
 
         # Back button
         back_button = customtkinter.CTkButton(
             self.sidebar, text="Back to Home", command=self.switch_to_home
         )
-        back_button.grid(row=4, column=0, pady=10, padx=20, sticky="w")
+        back_button.grid(row=5, column=0, pady=10, padx=20, sticky="w")
 
         # drone info container
         self.drone_info_container = customtkinter.CTkFrame(self.sidebar)
-        self.drone_info_container.grid(row=4, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
+        self.drone_info_container.grid(row=5, column=0, pady=10, padx=20, rowspan=8, sticky="nsew")
         self.drone_info_Label = customtkinter.CTkLabel(self.drone_info_container, text="Drones", font=("Arial", 20))
         self.drone_info_Label.grid(row=0, column=0, pady=10, padx=20, sticky="nsew")
 
@@ -608,8 +685,12 @@ class MapPage(customtkinter.CTkFrame):
         btn_investigate_poi = customtkinter.CTkButton(self.debug_window, text="Investigate POI", command=self.gui_ref.call_investigate_poi)
         btn_investigate_poi.pack(pady=5)
 
+        btn_simulate_image_detection = customtkinter.CTkButton(self.debug_window, text="Simulate Image Detection", command=self.gui_ref.call_simulate_image_detection)
+        btn_simulate_image_detection.pack(pady=5)
+
         btn_close = customtkinter.CTkButton(self.debug_window, text="Close", command=self.close_debug_popup)
         btn_close.pack(pady=10)
+
     
     def get_target_debug_drone(self):
         try:
@@ -703,11 +784,12 @@ class MapPage(customtkinter.CTkFrame):
         return self.polygon_points
 
     
-    def add_poi(self, lat, lon, name):
+    def add_poi(self, lat, lon, name, description=""):
         poi_count = len(self.pois) + 1
-        poi = POI(lat, lon, name, self.map_widget, self.poi_info_container, poi_count)
+        poi = POI(lat, lon, name, description, self.map_widget, self.poi_info_container, poi_count, self.gui_ref)
         self.pois.append(poi)
         self.gui_ref.callAddPoiInMissionState(poi)
+        return poi_count
     
     def create_test_poi(self, coords):
         poi_count = len(self.pois) + 1
@@ -865,6 +947,11 @@ class GUI:
                 positions.append((waypoint.lat, waypoint.lon))
             path = self.map_page.map_widget.set_path(position_list = positions, width=5, color="red")
 
+    def call_simulate_image_detection(self):
+        target_drone = self.map_page.get_target_debug_drone()
+        target_image = self.map_page.get_debug_waypoints()
+        image_path = f"./temp/drone_testing{target_image}.jpg"
+        self.missionState.handle_image_detection(target_drone, image_path)
     def finish_creating_job(self):
         pass
     def call_investigate_poi(self):
@@ -873,7 +960,8 @@ class GUI:
 
         self.missionState.create_poi_investigate_job(poi_id, drone_id)
 
-    
+    def call_end_mission(self):
+        self.missionState.end_mission()
     
     
 

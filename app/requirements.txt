@@ -6,3 +6,6 @@ osmnx
 matplotlib
 sqlalchemy
 geoalchemy2
+opencv-python
+ultralytics
+numpy
