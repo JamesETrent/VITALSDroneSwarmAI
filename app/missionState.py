@@ -6,6 +6,8 @@ import threading
 from TerrainPreProcessing.terrain_queries import create_search_area
 from TerrainPreProcessing.visualization import plot_search_area, plot_advanced, plot_postGIS_data
 from PathPlanning.path import search_grid_with_drones
+from LangGraph import langChainMain
+from Utils import coordinate_estimation
 import heapq
 
 class Drone:
@@ -61,7 +63,7 @@ class Drone:
     def addJob(self, job):
         if self.jobQueue.is_empty() and self.active_job is None: 
             self.setActiveJob(job)
-        elif self.active_job is not None and (job.job_priority - self.active_job.job_priority) > 3:
+        elif self.active_job is not None and (int(job.job_priority) - self.active_job.job_priority) > 3:
             # if the new job has a higher priority than the active job, pause the active job
             self.setActiveJob(job)
         else:
@@ -273,9 +275,23 @@ class missionState:
 
     def doPathPlanning(self):
         #pass the grid, current_drone_positions(In ID Order, long-lat pairs), and number of drones(If you don't pass the drone positions)
-        self.drone_search_destinations = search_grid_with_drones(self.missionGrid,None,self.viable_grid_positions,4)
+        drone_positions =  []
+        for drone in self.drones:
+            drone_positions.append((drone.longitude/1e7, drone.latitude/1e7))
+        self.drone_search_destinations = search_grid_with_drones(self.missionGrid,drone_positions,self.viable_grid_positions,4)
+        self.deployInitialPaths()
 
         pass
+
+    def deployInitialPaths(self):
+        for i, drone in enumerate(self.drones):
+            converted_waypoints = []
+            for j, coord in enumerate(self.drone_search_destinations[i]):
+                converted_waypoints.append((coord.y, coord.x, 10, 0))
+            self.create_job("Initial Search", converted_waypoints, 1, drone.drone_id)
+
+
+    
 
 
 
@@ -405,9 +421,47 @@ class missionState:
             drone.setDroneUnavailable()
             self.dispatcher.return_to_launch(int(drone_id))
     
+    def end_mission(self):
+        for drone in self.drones:
+            self.call_drone_home(drone.drone_id)
+    
     def set_missionID(self, id):
         self.missionID = id
-
+    
+    def get_missionID(self):
+        return self.missionID
+    
+    def handle_image_detection(self, drone_id, image_path):
+        result = langChainMain.give_image_description(image_path)
+        description = result.content
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        estimated_lat, estimated_lon = coordinate_estimation.estimate_position( 
+            drone.latitude / 1e7, 
+            drone.longitude / 1e7, 
+            drone.altitude / 1000, 
+            -10, 
+            0, 
+            90, # Assuming a FOV of 90 degrees for simplicity
+            960, # x coordinate in the image (center)
+            540, # y coordinate in the image (center)
+            drone.heading,
+            image_width=1920,
+            image_height=1080
+        )
+        for poi in self.pois:
+            if coordinate_estimation.calculate_distance_between_points(estimated_lat, estimated_lon, poi.lat, poi.lon) < 20:  #if poi is within 20 meters
+                # POI already exists
+                os.makedirs(f"Missions/{self.missionID}/POIs/{poi.id}", exist_ok=True)
+                #move image to POI directory
+                os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi.id}/{os.path.basename(image_path)}")
+                poi.positive_flags += 1
+                return
+        poi_id  = self.gui.map_page.add_poi(estimated_lat, estimated_lon, "Detected POI", description)
+        self.create_poi_investigate_job(poi_id, drone_id, 5)
+        #add image to POI directory
+        os.makedirs(f"Missions/{self.missionID}/POIs/{poi_id}", exist_ok=True)
+        #move image to POI directory
+        os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi_id}/{os.path.basename(image_path)}")
 
         
 

@@ -1,6 +1,8 @@
 import requests
 import json
 import ollama
+import base64
+
 
 
 
@@ -68,4 +70,27 @@ def call_llm(prompt, mission_area, drones, pois):
     )
     return response.message
 
+
+def give_image_description(image_path):
+    system_prompt = f"""
+    You are part of a drone flight operator system. You are tasked with describing images taken by drones.
+    to create a useful description of what is located at the point of interest. Descriptions should be no longer than a couple of sentences.
+    And only describe simple details which would be useful in a searh and rescue operation.
+
+    
+    """
+    print(f"image-Path:{image_path}")
+    # with open(image_path, "rb") as image_file:
+    #     encoded_string = base64.b64encode(image_file.read())
+    response = ollama.chat(
+        model="llava",
+        messages=[{
+            "role": "user",
+            "content": system_prompt,
+            'images': [image_path]
+
+        }],
+        
+    )
+    return response.message
     
