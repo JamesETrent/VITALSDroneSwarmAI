@@ -7,6 +7,7 @@ from TerrainPreProcessing.terrain_queries import create_search_area
 from TerrainPreProcessing.visualization import plot_search_area, plot_advanced, plot_postGIS_data
 from PathPlanning.path import search_grid_with_drones
 from LangGraph import langChainMain
+import concurrent.futures
 from Utils import coordinate_estimation
 import heapq
 
@@ -432,37 +433,49 @@ class missionState:
         return self.missionID
     
     def handle_image_detection(self, drone_id, image_path):
-        result = langChainMain.give_image_description(image_path)
-        description = result.content
+        # Run the LLM in a separate thread to prevent UI freezing
+        def process_image():
+            result = langChainMain.give_image_description(image_path)
+            return result.content  # Extract the description
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(process_image)
+            description = future.result()  # Wait for the result in a non-blocking way
+
+        # Now process the estimated position
         drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is None:
+            return
+        
         estimated_lat, estimated_lon = coordinate_estimation.estimate_position( 
             drone.latitude / 1e7, 
             drone.longitude / 1e7, 
             drone.altitude / 1000, 
             -10, 
             0, 
-            90, # Assuming a FOV of 90 degrees for simplicity
-            960, # x coordinate in the image (center)
-            540, # y coordinate in the image (center)
+            90,  # Assuming a FOV of 90 degrees for simplicity
+            960,  # x coordinate in the image (center)
+            540,  # y coordinate in the image (center)
             drone.heading,
             image_width=1920,
             image_height=1080
         )
+
+        # Check if the detected POI already exists within 20 meters
         for poi in self.pois:
-            if coordinate_estimation.calculate_distance_between_points(estimated_lat, estimated_lon, poi.lat, poi.lon) < 20:  #if poi is within 20 meters
-                # POI already exists
+            if coordinate_estimation.calculate_distance_between_points(estimated_lat, estimated_lon, poi.lat, poi.lon) < 20:
                 os.makedirs(f"Missions/{self.missionID}/POIs/{poi.id}", exist_ok=True)
-                #move image to POI directory
                 os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi.id}/{os.path.basename(image_path)}")
                 poi.positive_flags += 1
                 return
-        poi_id  = self.gui.map_page.add_poi(estimated_lat, estimated_lon, "Detected POI", description)
-        self.create_poi_investigate_job(poi_id, drone_id, 5)
-        #add image to POI directory
-        os.makedirs(f"Missions/{self.missionID}/POIs/{poi_id}", exist_ok=True)
-        #move image to POI directory
-        os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi_id}/{os.path.basename(image_path)}")
 
+        # If no existing POI, create a new one
+        poi_id = self.gui.map_page.add_poi(estimated_lat, estimated_lon, "Detected POI", description)
+        self.create_poi_investigate_job(poi_id, drone_id, 5)
+
+        # Store image in POI directory
+        os.makedirs(f"Missions/{self.missionID}/POIs/{poi_id}", exist_ok=True)
+        os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi_id}/{os.path.basename(image_path)}")
         
 
 if __name__ == "__main__":

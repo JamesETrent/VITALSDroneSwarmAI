@@ -192,59 +192,66 @@ class POI:
         self.name = f"poi {poi_count}"
         self.positive_flags  = 0
         self.description = description
-        self.marker = map_widget.set_marker(lat, lon, text=name, command=self.open_popup)
-        self.info_widget = POIInfoBox(info_container, name, lat, lon, poi_count, popup_func=self.open_popup)
+        self.marker = map_widget.set_marker(lat, lon, text=self.name, command=self.open_popup)
+        self.info_widget = POIInfoBox(info_container, self.name, lat, lon, poi_count, popup_func=self.open_popup)
         
     
     def open_popup(self, event):
         # Create a new window
         self.popup = customtkinter.CTkToplevel(self.info_container)
         self.popup.title(self.name)
-        self.popup.geometry("300x500")
+        self.popup.geometry("320x500")  # Increased width slightly for better layout
 
-        #push the popup to the front
+        # Push the popup to the front
         self.popup.lift()
         self.popup.focus_force()
         self.popup.grab_set()
         self.popup.protocol("WM_DELETE_WINDOW", self.popup.destroy)
 
-        # Add content to the popup
-        name_label = customtkinter.CTkLabel(self.popup, text=f"Name: {self.name}", font=("Arial", 12))
+        # Create a scrollable frame
+        scrollable_frame = customtkinter.CTkScrollableFrame(self.popup, width=300, height=450)  # Limit height to trigger scrolling
+        scrollable_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Add content to the scrollable frame
+        name_label = customtkinter.CTkLabel(scrollable_frame, text=f"Name: {self.name}", font=("Arial", 12))
         name_label.pack(pady=10)
-        coordinates_label = customtkinter.CTkLabel(self.popup, text=f"Coordinates: ({self.lat:.4f}, {self.lon:.4f})", font=("Arial", 12))
+
+        coordinates_label = customtkinter.CTkLabel(scrollable_frame, text=f"Coordinates: ({self.lat:.4f}, {self.lon:.4f})", font=("Arial", 12))
         coordinates_label.pack(pady=10)
+
         if self.description:
-            description_label = customtkinter.CTkLabel(self.popup, text=f"Description: {self.description}", wraplength=500, font=("Arial", 12))
+            description_label = customtkinter.CTkLabel(scrollable_frame, text=f"Description: {self.description}", wraplength=280, font=("Arial", 12))
             description_label.pack(pady=10)
         else:
-            description_label = customtkinter.CTkLabel(self.popup, text="Description: No description available.", font=("Arial", 12))
+            description_label = customtkinter.CTkLabel(scrollable_frame, text="Description: No description available.", font=("Arial", 12))
             description_label.pack(pady=10)
-        #load all images in the poi folder
-        # Add images if they exist
+
+        # Load all images in the POI folder
         mission_id = self.gui_ref.missionState.get_missionID()
         image_folder = f"./Missions/{mission_id}/POIs/{self.id}/"
+
         if os.path.exists(image_folder):
             for filename in os.listdir(image_folder):
                 if filename.endswith(".jpg") or filename.endswith(".png"):
                     image_path = os.path.join(image_folder, filename)
-                    print(f"image_path  loading popup: {image_path}")
+                    print(f"Image path loading popup: {image_path}")
+
                     image = PIL.Image.open(image_path)
-                    image = image.resize((300, 300))
-                    photo = customtkinter.CTkImage(image, size=(300, 300))
-                    image_label = customtkinter.CTkLabel(self.popup, image=photo, text="", width=300, height=300)
+                    image = image.resize((280, 280))  # Resize to fit scrollable frame
+                    photo = customtkinter.CTkImage(image, size=(280, 280))
+
+                    image_label = customtkinter.CTkLabel(scrollable_frame, image=photo, text="", width=280, height=280)
                     image_label.pack(pady=10)
         else:
-            no_image_label = customtkinter.CTkLabel(self.popup, text="No images available.", font=("Arial", 12))
+            no_image_label = customtkinter.CTkLabel(scrollable_frame, text="No images available.", font=("Arial", 12))
             no_image_label.pack(pady=10)
-        # Add description if it exists
+
         # Add a separator
-        separator = customtkinter.CTkLabel(self.popup, text="", height=2)
+        separator = customtkinter.CTkLabel(scrollable_frame, text="", height=2)
         separator.pack(fill="x", pady=10)
-        
-        
 
         # Add a close button
-        close_button = customtkinter.CTkButton(self.popup, text="Close", command=self.popup.destroy)
+        close_button = customtkinter.CTkButton(scrollable_frame, text="Close", command=self.popup.destroy)
         close_button.pack(pady=10)
 
 class POIInfoBox(customtkinter.CTkFrame):
