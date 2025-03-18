@@ -20,7 +20,7 @@ def get_features(rtree_index, useOSMNX: bool, osmnx_points, postGIS_points, sear
     if useOSMNX:
         print("Getting information from OSMNX")
         if not has_internet():
-            useOSMNX = False
+            #useOSMNX = False
             print("No Internet! Attempting to use PostGIS database")
 
         if useOSMNX:
@@ -49,13 +49,14 @@ def get_features(rtree_index, useOSMNX: bool, osmnx_points, postGIS_points, sear
     if not useOSMNX:
         print("Getting information from PostGIS database")
         try:
+            print("Attempt to query POSTGIS")
             info = query_osm_features_all(search_tags, postGIS_points)
-
+            print("Got past?")
             if info is None or not info:
                 print("PostGIS returned no features. Skipping PostGIS processing.")
                 return False  # No data from PostGIS either
 
-            plot_postGIS_data(info)
+            #plot_postGIS_data(info)
             print(f"Loaded {len(info)} features into R-tree from PostGIS.")
             postgis_load_rtree(rtree_index, info)
             return True
@@ -117,7 +118,7 @@ def create_search_area(polygon_points, search_tags, useOSMX = True,maximum_squar
 
     if not success:
         print("unable to create a search area")
-        return None,None
+        return None,None,None
 
     viable_grid_positions = fill_grid_data(rtree_index, grid, top_left, square_size, search_tags, postGIS_points)
 
@@ -167,7 +168,7 @@ def fill_grid_data(rtree_index, grid, top_left, square_size, search_tags,postGIS
             grid[i][j].polygon = Polygon(flipped_coordinates)
             grid[i][j].in_searcharea = actual_search_area.intersects(grid[i][j].polygon)
             count+= 1
-            if grid[i][j].in_searcharea and grid[i][j].total_count > 0:
+            if grid[i][j].in_searcharea:
                 viable_grid_positions.append((i,j))
             #print(f'{t_left[0]},{t_left[1]},#00FF00,marker,"Point #{i},{j} T_L"')
             #print(f'{b_right[0]},{b_right[1]},#00FF00,marker,"Point #{i},{j} B_R"')

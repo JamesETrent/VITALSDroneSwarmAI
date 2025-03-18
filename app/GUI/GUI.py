@@ -406,15 +406,20 @@ class ChatSidebar(customtkinter.CTkFrame):
 
             def call_create_poi_investigate_job(poi_id, drone_id, priority=5):
                 self.gui_ref.missionState.create_poi_investigate_job(poi_id, drone_id, priority)
-                self.add_message_bubble(f"LLM: sending drone {drone_id} to investigate POI {poi_id}", sender="llm")
+                self.add_message_bubble(f"LLM: Sending drone {drone_id} to investigate POI {poi_id}", sender="llm")
             def call_return_to_launch(drone_id):
                 self.gui_ref.missionState.call_drone_home(drone_id)
                 self.add_message_bubble(f"LLM: Sending drone {drone_id} to launch.", sender="llm")
+            def call_end_mission():
+                self.gui_ref.missionState.end_mission()
+                self.add_message_bubble(f"LLM: Ending mission, returning all drones to launch.", sender="llm")
 
 
             def on_complete(future):
                 available_tools = {'create_poi_investigate_job' : call_create_poi_investigate_job,
-                                   'call_return_to_launch' : call_return_to_launch}
+                                   'call_return_to_launch' : call_return_to_launch,
+                                   'call_end_mission' : call_end_mission
+                                   }
                 response = future.result()
                 # Process the toolcalls
                 if response.tool_calls:
@@ -598,6 +603,9 @@ class MapPage(customtkinter.CTkFrame):
         self.map_widget = tkintermapview.TkinterMapView(
             self.map_frame, width=600, height=600, corner_radius=20
         )
+
+        #Use this for offline demonstrations. 
+        #self.map_widget.set_tile_server("http://localhost:8080/tile/{z}/{x}/{y}.png")
         self.map_widget.pack(fill="both", expand=False, padx=20, pady=20)
         self.map_widget.set_position(28.6026251, -81.1999887)
         self.map_widget.add_left_click_map_command(self.left_click_event)

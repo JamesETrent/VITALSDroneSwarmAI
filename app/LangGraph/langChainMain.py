@@ -45,6 +45,18 @@ def call_llm(prompt, mission_area, drones, pois):
         Job: A Job object
         """
         return Job(f"Return to Launch", drone_id, [(0, 0)])
+    
+    def call_end_mission():
+        """
+        calls all of the drones to return to their launch positions
+
+        Returns:
+        Job: A Job object
+        """
+       
+       
+        return Job(f"Return to Launch", drone_id, [(0, 0)])
+
     system_prompt = f"""
     You are a drone flight planner. 
     We have a mission polygon: {mission_area}
@@ -66,7 +78,7 @@ def call_llm(prompt, mission_area, drones, pois):
             "role": "user",
             "content": system_prompt
         }],
-        tools=[create_poi_investigate_job, call_return_to_launch]
+        tools=[create_poi_investigate_job, call_return_to_launch, call_end_mission]
     )
     return response.message
 

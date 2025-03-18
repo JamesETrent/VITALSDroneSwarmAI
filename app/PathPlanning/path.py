@@ -39,7 +39,7 @@ def search_grid_with_drones(grid, drone_positions = None, viable_grid_positions 
             if(len(viable_grid_positions) == 0):
                 break
             start = drone_positions[drone_id]
-            highest_priority_cell = max(viable_grid_positions, key=lambda x: grid[x[0]][x[1]].total_count*10 - heuristic(start, x))
+            highest_priority_cell = max(viable_grid_positions, key=lambda x: grid[x[0]][x[1]].total_count*10 - (heuristic(start, x)))
             
             cell_coordinate = grid[highest_priority_cell[0]][highest_priority_cell[1]].polygon.centroid
 
