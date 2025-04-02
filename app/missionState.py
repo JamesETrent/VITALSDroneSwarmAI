@@ -178,6 +178,7 @@ class POI:
         self.desc = desc
         self.poi_status = poi_status
         self.poi_type = poi_type
+        self.poi_target_at_location = False
 
 # a job queue for each drone
 class jobPriorityQueue:
@@ -470,6 +471,9 @@ class missionState:
                 os.makedirs(f"Missions/{self.missionID}/POIs/{poi.id}", exist_ok=True)
                 os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi.id}/{os.path.basename(image_path)}")
                 poi.positive_flags += 1
+                if poi.positive_flags >= 3 and not poi.poi_target_at_location:
+                    poi.poi_target_at_location = True
+                    
                 return
 
         # If no existing POI, create a new one

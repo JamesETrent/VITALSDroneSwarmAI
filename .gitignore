@@ -34,6 +34,12 @@ data/images/*
 
 results*.csv
 
+#  Allow images in app/assets
+
+!app/assets/*.png
+!app/assets/*.jpg
+!app/assets/*.jpeg
+
 # Datasets -------------------------------------------------------------------------------------------------------------
 coco/
 coco128/
