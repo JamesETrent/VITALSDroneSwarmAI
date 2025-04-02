@@ -4,7 +4,8 @@ from Dispatcher import Dispatcher
 import asyncio
 import threading
 from TerrainPreProcessing.terrain_queries import create_search_area
-from TerrainPreProcessing.visualization import plot_search_area, plot_advanced, plot_postGIS_data
+from TerrainPreProcessing.visualization import plot_search_area, plot_advanced, plot_postGIS_data, plot_drone_paths
+from TerrainPreProcessing.visualization import Interactive_Visualization
 from PathPlanning.path import search_grid_with_drones
 from LangGraph import langChainMain
 import concurrent.futures
@@ -271,8 +272,9 @@ class missionState:
         self.rtree = rtree
         self.missionPolygon = polygon
         self.doPathPlanning()
-        
-        plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
+        new_visualization = Interactive_Visualization(self)
+        new_visualization.initalize_plot(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0, drone_paths=self.drone_search_destinations)
+        #plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0, insta_plot=True)
         #Need to calculate the path planning stuff after. 
 
     def doPathPlanning(self):
