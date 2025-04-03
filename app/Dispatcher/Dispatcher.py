@@ -299,6 +299,7 @@ class Dispatcher:
 
     async def start_mission(self, drone_id, takeoff_altitude=10):
         drone = self.missionState.get_drone(drone_id)
+        takeoff_altitude = drone.operatingAltitude
         if not drone:
             print(f"Drone {drone_id} not found.")
             return 

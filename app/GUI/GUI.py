@@ -13,7 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 class Drone:
     
-    def __init__(self, map_widget, info_container,job_container, drone_id, system_status):
+    def __init__(self, map_widget, info_container,job_container, drone_id, system_status, gui_ref):
+        self.gui_ref = gui_ref
         self.map_widget = map_widget
         self.info_container = info_container
         self.job_container = job_container
@@ -34,7 +35,7 @@ class Drone:
         self.active_job_start_pos = None
         self.showing_active_job_path = False
         self.id_of_job_with_path = None
-        self.info_widget = DroneInfoBox(info_container, drone_id)
+        self.info_widget = DroneInfoBox(info_container, drone_id, self)
         self.job_info_container = jobInfoContainer(job_container, drone_id)
         match drone_id:
             case 1:
@@ -186,6 +187,7 @@ class POI:
         self.map_widget = map_widget
         self.gui_ref = gui_ref
         self.info_container = info_container
+        self.poi_target_at_location =  False  # Flag to check if this POI is being targeted by a drone
         self.id = poi_count
         self.lat = lat
         self.lon = lon
@@ -195,7 +197,36 @@ class POI:
         self.marker = map_widget.set_marker(lat, lon, text=self.name, command=self.open_popup)
         self.info_widget = POIInfoBox(info_container, self.name, lat, lon, poi_count, popup_func=self.open_popup)
         
+    def target_found(self,  drone_id):
+        self.poi_target_at_location = True
+        self.marker.set_text(f"{self.name} (Target Found)")  
+        #create popup to ask if the user wants to end the mission or continue investigating
+        self.target_found_popup = customtkinter.CTkToplevel(self.info_container)
+        self.target_found_popup.title(f"{self.name} - Target Found")
+        self.target_found_popup.geometry("400x300")
+        self.target_found_popup.resizable(False, False)
+        self.target_found_popup.attributes("-topmost", True)  # Keep it on top
+        label = customtkinter.CTkLabel(self.target_found_popup, text=f"Target found at {self.name}!\nDo you want to end the mission or continue the search?", font=("Arial", 14))
+        label.pack(pady=20)
+        end_button = customtkinter.CTkButton(self.target_found_popup, text="End Mission", command=self.end_mission)
+        end_button.pack(pady=10) 
+        continue_button = customtkinter.CTkButton(self.target_found_popup, text="Continue Search", command=self.continue_investigating)
+        continue_button.pack(pady=10)
+
+    def end_mission(self):
+        if hasattr(self, 'target_found_popup'):
+            self.target_found_popup.destroy()
+            self.target_found_popup = None
+        self.gui_ref.missionState.end_mission()
     
+    def continue_investigating(self):
+        if hasattr(self, 'target_found_popup'):
+            self.target_found_popup.destroy()
+            self.target_found_popup = None
+        # remove investigation job if it exists
+        self.gui_ref.missionState.remove_poi_investigate_job(self.id)
+
+
     def open_popup(self, event):
         # Create a new window
         self.popup = customtkinter.CTkToplevel(self.info_container)
@@ -358,36 +389,47 @@ class ChatSidebar(customtkinter.CTkFrame):
 
     def add_message_bubble(self, text, sender="user"):
         """Create and add a message bubble to the chat."""
+        
+        # Container Frame takes full width to align bubbles left or right
+        container = customtkinter.CTkFrame(self.message_frame, fg_color="transparent")
+        container.grid(row=self.current_row, column=0, sticky="ew", padx=5, pady=2)
+
+        # Ensure container expands fully
+        container.grid_columnconfigure(0, weight=1)
+
+        # Bubble Label
         bubble = customtkinter.CTkLabel(
-            self.message_frame,
+            container,
             text=text,
-            wraplength=120,  # Increase this if necessary
+            justify="left",
+            anchor="w",
             corner_radius=15,
-            fg_color=("#3b82f6" if sender == "user" else "#e5e5e5"),
-            text_color=("white" if sender == "user" else "black"),
-            padx=0,  # Ensure proper horizontal padding
+            fg_color="#3b82f6" if sender == "user" else "#e5e5e5",
+            text_color="white" if sender == "user" else "black",
+            padx=10,
             pady=5
         )
 
-        # Align user messages to the right, LLM messages to the left
-        bubble.grid(
-            row=self.current_row,
-            column=0 if sender == "llm" else 1, 
-            sticky="w" if sender == "llm" else "e",
-            padx=0, pady=2
-        )
-        bubble.configure(width=290)
-        # Force columns to maintain a fixed size
-        self.message_frame.grid_columnconfigure(0, weight=1, minsize=140)  # LLM messages
-        self.message_frame.grid_columnconfigure(1, weight=1, minsize=140)  # User messages
+        # Alignment logic (Left for LLM, Right for User)
+        if sender == "user":
+            bubble.pack(anchor="e", padx=(40, 0))  # Right alignment with padding
+        else:
+            bubble.pack(anchor="w", padx=(0, 40))  # Left alignment with padding
 
-        # Increment row after each message
+        # Set bubble wraplength dynamically based on current sidebar width
+        self.update_idletasks()
+        max_bubble_width = self.message_frame.winfo_width() * 0.7  # Max 70% of sidebar
+        bubble.configure(wraplength=max_bubble_width)
+
+        # Ensure the bubble keeps its width once set, avoiding later resizing issues
+        bubble.update_idletasks()
+        bubble_width = bubble.winfo_width()
+        bubble.configure(width=bubble_width)
+
         self.current_row += 1
-
         self.message_frame.update_idletasks()
         self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
-        self.chat_canvas.yview_moveto(1)  # Scroll to the bottom
-
+        self.chat_canvas.yview_moveto(1)
 
 
     def send_message(self):
@@ -483,8 +525,11 @@ class jobInfoItem(customtkinter.CTkFrame):
         
         
 class DroneInfoBox(customtkinter.CTkFrame):
-    def __init__(self, parent, id, row=1):
+    def __init__(self, parent, id, drone_ref):
         # Create the drone info frame
+        self.drone_ref = drone_ref
+        self.parent = parent
+        self.id = id
         self.drone_info =customtkinter.CTkFrame(parent, fg_color="#337ab7")  # Blue background
         self.drone_info.grid(row=id, column=0, padx=10, pady=10, sticky="ew")
 
@@ -508,12 +553,94 @@ class DroneInfoBox(customtkinter.CTkFrame):
 
         self.heading_label = customtkinter.CTkLabel(self.drone_info, text="Heading: Unknown", font=("Arial", 10), fg_color="#337ab7",)
         self.heading_label.grid(row=4, column=0, columnspan=2, sticky="w", padx=5)
+
+        self.settings_button = customtkinter.CTkButton(self.drone_info, text="Settings", command=self.open_settings)
+        self.settings_button.grid(row=5, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
     
     def updatePos(self, position, altitude, velocity, heading):
         self.position_label.configure(text=f"Position: {position[0]:.7f}, {position[1]:.7f}")
         self.altitude_label.configure(text=f"Altitude: {altitude / 1000} m")
         self.velocity_label.configure(text=f"Velocity: {velocity:.2f}")
         self.heading_label.configure(text=f"Heading: {heading}")
+    
+    def open_settings(self):
+        # Open settings window
+        self.settings_window = customtkinter.CTkToplevel(self.parent)
+        self.settings_window.title(f"Settings for Drone {self.id}")
+        self.settings_window.geometry("300x600")
+        self.settings_window.resizable(False, False)
+        starting_alt = self.drone_ref.gui_ref.missionState.get_drone_operatingAltitude(self.id)
+        starting_model = self.drone_ref.gui_ref.missionState.get_drone_vision_model(self.id)
+        available_models = []
+        #parse the CVModels Folder
+        for filename in os.listdir("./ComputerVision/CVModels/"):
+            if filename.endswith(".pt"):
+                available_models.append(filename[:-3])
+        #force top level
+        self.settings_window.attributes("-topmost", True)
+        # Add a label
+        label = customtkinter.CTkLabel(self.settings_window, text=f"Settings for Drone {self.id}", font=("Arial", 16))
+        label.pack(pady=10)
+        # Add operating altitude input
+        altitude_label = customtkinter.CTkLabel(self.settings_window, text="Operating Altitude (m):")
+        altitude_label.pack(pady=5)
+        self.altitude_entry = customtkinter.CTkEntry(self.settings_window, placeholder_text=starting_alt)
+        self.altitude_entry.pack(pady=5)
+        # Add vision model input
+        model_label = customtkinter.CTkLabel(self.settings_window, text="Vision Model:")
+        model_label.pack(pady=5)
+        self.model_entry = customtkinter.CTkOptionMenu(self.settings_window, values=available_models, command=None)
+        self.model_entry.set(starting_model[:-3])
+        self.model_entry.pack(pady=5)
+        self.mount_angle_label = customtkinter.CTkLabel(self.settings_window, text="Camera Mount Angle (degrees):")
+        self.mount_angle_label.pack(pady=5)
+        self.mount_angle_entry = customtkinter.CTkEntry(self.settings_window, placeholder_text="-5")
+        self.mount_angle_entry.pack(pady=5)
+        self.vertical_fov_label = customtkinter.CTkLabel(self.settings_window, text="Vertical FOV (degrees):")
+        self.vertical_fov_label.pack(pady=5)
+        self.vertical_fov_entry = customtkinter.CTkEntry(self.settings_window, placeholder_text="60")
+        self.vertical_fov_entry.pack(pady=5)
+        self.horizontal_fov_label = customtkinter.CTkLabel(self.settings_window, text="Horizontal FOV (degrees):")
+        self.horizontal_fov_label.pack(pady=5)
+        self.horizontal_fov_entry = customtkinter.CTkEntry(self.settings_window, placeholder_text="80")
+        self.horizontal_fov_entry.pack(pady=5)
+
+        # Add a save button
+        save_button = customtkinter.CTkButton(self.settings_window, text="Save", command=lambda: self.save_settings( starting_alt, starting_model, self.altitude_entry.get(), self.model_entry.get()))
+         # Save the settings
+        save_button.pack(pady=10)
+
+
+        # Add a close button
+        closebutton = customtkinter.CTkButton(self.settings_window, text="Close", command=self.close_settings)
+        closebutton.pack(pady=10)
+
+
+        # Prevent accidental closure
+        self.settings_window.protocol("WM_DELETE_WINDOW", self.close_settings)
+    
+    def close_settings(self):
+        # Close the settings window
+        if hasattr(self, 'settings_window'):
+            self.settings_window.destroy()
+            self.settings_window = None
+        else:
+            print("Settings window already closed.")
+    
+    def save_settings(self,startingAlt, startingModel, alt, model):
+        
+        try:
+            alt = int(alt)
+            if alt < 0:
+                raise ValueError("Altitude must be positive.")
+            if alt != startingAlt:
+                self.drone_ref.gui_ref.missionState.set_drone_operatingAltitude(self.id, alt)
+        except ValueError as e:
+            print(f"Invalid altitude value: {e}")
+            return
+        if model != startingModel:
+            self.drone_ref.gui_ref.missionState.set_drone_vision_model(self.id, model+".pt")
+        
     
     def updateStatus(self, status):
         
@@ -565,17 +692,18 @@ class MapPage(customtkinter.CTkFrame):
         # move_drone_test_button.grid(row=1, column=0, pady=10, padx=20, sticky="w")
 
         self.start_polygon_button = customtkinter.CTkButton(
-            self.sidebar, text="Start Creating Polygon", command=self.start_creating_polygon
+            self.sidebar, text="Start Creating Polygon",  state="disabled", command=self.start_creating_polygon
         )
-        self.start_polygon_button.grid(row=1, column=0, pady=10, padx=20, sticky="w")
+        self.start_polygon_button.grid(row=2, column=0, pady=10, padx=20, sticky="w")
 
         self.connect_button = customtkinter.CTkButton(
         self.sidebar, text="Connect to Mavlink", command=self.gui_ref.call_mavlink_connection
         )
-        self.connect_button.grid(row=2, column=0, pady=10, padx=20, sticky="w")
+        
+        self.connect_button.grid(row=1, column=0, pady=10, padx=20, sticky="w")
 
         self.end_mission_button = customtkinter.CTkButton(
-            self.sidebar, text="End Mission", command=self.gui_ref.call_end_mission
+            self.sidebar, text="Start Mission",  state="disabled", command=self.gui_ref.call_start_mission
         )
         self.end_mission_button.grid(row=3, column=0, pady=10, padx=20, sticky="w")
 
@@ -744,20 +872,41 @@ class MapPage(customtkinter.CTkFrame):
 
 
     def _add_drone(self, drone_id, system_status):
-        newdrone = Drone(self.map_widget, self.drone_info_container, self.bottom_frame, drone_id, system_status)
+        newdrone = Drone(self.map_widget, self.drone_info_container, self.bottom_frame, drone_id, system_status, self.gui_ref)
         self.drones.append(newdrone)
 
     def left_click_event(self, coordinates_tuple):
+        if self.gui_ref.isAddingDetectionPoints:
+            self.gui_ref.add_detection_point({"lat": coordinates_tuple[0],"lon": coordinates_tuple[1], "num_hits":0})
+            return
         if self.first_polygon_point:
             self.polygon_points.append(coordinates_tuple)
-            self.polygon = self.map_widget.set_polygon(self.polygon_points,)
+            self.polygon = self.map_widget.set_polygon(self.polygon_points,fill_color=None)
             self.first_polygon_point = False
-            
+            return
         elif self.editing_polygon:
             #self.polygon_points.append(coordinates_tuple)
             self.polygon.add_position(coordinates_tuple[0], coordinates_tuple[1])
+            return
+        elif self.gui_ref.choosing_gcs_location:
+            #create popup to confirm this is the desired GCS location
+            confirm_popup = customtkinter.CTkToplevel(self)
+            confirm_popup.title("Confirm GCS Location")
+            confirm_popup.geometry("300x150")
+            confirm_popup.resizable(False, False)
+            #ensure window is at top level
+            confirm_popup.attributes('-topmost', True)
+            confirm_popup.grab_set()  # Make it modal
+            confirm_label = customtkinter.CTkLabel(confirm_popup, text="Confirm this as GCS location?", font=("Arial", 14))
+            confirm_label.pack(pady=20)
+            confirm_button = customtkinter.CTkButton(confirm_popup, text="Confirm", command=lambda: self.gui_ref.set_gcs_location(coordinates_tuple, confirm_popup))
+            confirm_button.pack(pady=10)
+            cancel_button = customtkinter.CTkButton(confirm_popup, text="Cancel", command=confirm_popup.destroy)
+            cancel_button.pack(pady=5)
+            return
         else:
             pass
+
 
     def move_marker(self):
         if self.drones:
@@ -780,6 +929,11 @@ class MapPage(customtkinter.CTkFrame):
             self.start_polygon_button.configure(state="disabled")
             self.polygon.name = "Mission Area"
             self.gui_ref.sendMissionPolygon(self.polygon_points)
+            if(self.gui_ref.isSimulation):
+                
+                self.gui_ref.start_adding_detection_points()
+                self.gui_ref.create_system_chat_message("Mission Area has been defined and terrain has been processed. For the simulation, please add detection points to the map. When you are done, right click the map and select 'Finish Adding Detection Points'")
+
             print(self.polygon_points)
         else:
             self.first_polygon_point = True
@@ -843,15 +997,22 @@ class GUI:
         self.app = customtkinter.CTk()
         self.app.title("VITALS DESKTOP APP")
         self.app.geometry("1280x720")
-
+        self.choosing_gcs_location = False
         self.container = customtkinter.CTkFrame(self.app)
         self.container.pack(fill="both", expand=True)
 
         self.currentJobWaypoints = []
         self.currentJobPath = None
 
+        self.isSimulation = False
+        self.missionStarted = False
+
+        self.detection_points = []
+        self.detection_point_markers = []
+        self.isAddingDetectionPoints = False
+
         # Create pages
-        self.home_page = HomePage(self.container, self.show_map_page, self)
+        self.home_page = HomePage(self.container, self.show_new_mission_popup, self)
         self.map_page = MapPage(self.container, self.show_home_page, self)
 
         # Show the home page initially
@@ -870,6 +1031,40 @@ class GUI:
         self.map_page.gui_ref.missionState.set_missionID(mission_id)
         self.home_page.pack_forget()
         self.map_page.pack(fill="both", expand=True)
+        self.create_system_chat_message(f"Welcome to VITALS! I am your AI assistant. Please connect to mavlink with the button on the left sidebar to start the mission. Your mission ID is {mission_id}.")
+
+    def show_new_mission_popup(self):
+        """Show a popup to select if mission will be a simulation or not"""
+        new_mission_popup = customtkinter.CTkToplevel(self.app)
+        new_mission_popup.title("New Mission")
+        new_mission_popup.geometry("350x250")
+        new_mission_popup.resizable(False, False)
+        #ensure window is at top level
+        new_mission_popup.attributes('-topmost', True)
+        new_mission_popup.grab_set()  # Make it modal
+
+        label = customtkinter.CTkLabel(new_mission_popup, text="Select Mission Type", font=("Arial", 16))
+        label.pack(pady=20)
+
+        def start_simulation():
+            self.isSimulation = True
+            self.show_map_page()  # Switch to map page for simulation
+            new_mission_popup.destroy()
+
+        def start_real_mission():
+            self.show_map_page()
+            new_mission_popup.destroy()
+
+        simulation_button = customtkinter.CTkButton(new_mission_popup, text="Simulation", command=start_simulation)
+        simulation_button.pack(pady=10)
+
+        real_mission_button = customtkinter.CTkButton(new_mission_popup, text="Real Mission", command=start_real_mission)
+        real_mission_button.pack(pady=10)
+
+        info_label = customtkinter.CTkLabel(
+            new_mission_popup, text="*Simulation mode allows for the placement of predefined targets\n to replace the detection of objects from onboard drone CV.", font=("Arial", 10), text_color="gray"
+        )
+        info_label.pack(pady=10)
 
     def run(self):
         self.app.mainloop()
@@ -878,7 +1073,15 @@ class GUI:
         self.missionState = missionState
 
     def call_mavlink_connection(self):
-        self.missionState.connect_to_mavlink()
+        success = self.missionState.connect_to_mavlink()
+        if success:
+            print("Connected to Mavlink successfully.")
+            self.map_page.connect_button.configure(state="disabled", text="Connected")
+            self.create_system_chat_message("Connected to Mavlink successfully.")
+            self.choosing_gcs_location = True
+            self.create_system_chat_message("Please mark the GCS location by clicking on the map.")
+        else:
+            print("Failed to connect to Mavlink.Callback")
     
     def get_polygon_points(self):
         return self.map_page.get_polygon_points()
@@ -917,6 +1120,39 @@ class GUI:
         #check if poi is already in the list
         if poi not in self.map_page.pois:
             self.map_page.add_poi(poi.lat, poi.lon, poi.name)
+    
+    def create_system_chat_message(self, text):
+        """Add a system message bubble to the chat window."""
+        self.map_page.collapsible_sidebar.add_message_bubble(text, sender="llm")
+
+    def start_adding_detection_points(self):
+        self.isAddingDetectionPoints = True
+        self.map_page.map_widget.add_right_click_menu_command(label="Finish Adding Detection Points", command=self.finish_adding_detection_points)
+    
+    def add_detection_point(self, coords):
+        self.detection_points.append(coords)
+        self.detection_point_markers.append(self.map_page.map_widget.set_marker(coords["lat"], coords["lon"], text="Detection Point"))
+
+    def finish_adding_detection_points(self):
+        self.isAddingDetectionPoints = False
+        #remove the right click menu command where label =  "Finish Adding Detection Points"
+        list  =  self.map_page.map_widget.right_click_menu_commands
+        target_command = None
+        for command in list:
+            if command['label'] == "Finish Adding Detection Points":
+                target_command = command
+                break
+        list.remove(target_command)
+
+        for marker in self.detection_point_markers:
+            marker.delete()
+        self.detection_point_markers = []
+        self.missionState.setDetectionPoints(self.detection_points)
+        self.create_system_chat_message("Setup Complete. You can now begin the mission.")
+        self.map_page.end_mission_button.configure(state="normal")
+        
+
+        
 
     
     
@@ -975,9 +1211,45 @@ class GUI:
 
         self.missionState.create_poi_investigate_job(poi_id, drone_id)
 
-    def call_end_mission(self):
-        self.missionState.end_mission()
+    def call_start_mission(self):
+        if not self.missionStarted:
+            self.missionStarted = True
+            self.missionState.startSearchMission()
+            self.create_system_chat_message("Mission started successfully!")
+            self.map_page.end_mission_button.configure( text="End Mission", command=self.missionState.end_mission)
+
+
+
+    def call_start_search_mission(self):
+        self.missionState.startSearchMission()
     
+    def set_gcs_location(self, coordinates_tuple, confirm_popup):
+        """Set the GCS location and close the confirmation popup."""
+        
+        self.gcs_location = coordinates_tuple
+        self.missionState.set_gcs_location(coordinates_tuple)
+        self.choosing_gcs_location = False
+        #load icon from assets folder
+        def _load_icon(self, path):
+            image = PIL.Image.open(path)
+            image = image.resize((50, 50))
+            return PIL.ImageTk.PhotoImage(image)
+        gcs_icon_path = "./assets/gcs.png"
+        gcs_icon = _load_icon(self, gcs_icon_path)
+
+        
+        self.gcs_marker  = self.map_page.map_widget.set_marker(
+            coordinates_tuple[0], coordinates_tuple[1],
+            text="Ground Control",
+            icon=gcs_icon,
+            icon_anchor = "center"
+        )
+        print(f"GCS location set to: {coordinates_tuple}")
+        self.create_system_chat_message("GCS location set successfully.")
+        confirm_popup.destroy()
+        self.create_system_chat_message("You can now draw the mission area by clicking on the map to create a polygon. Press the 'Finish Creating Polygon' button when you're ready to finish the mission area.")
+        self.map_page.start_polygon_button.configure(state="normal")
+        self.map_page.start_creating_polygon()  # Automatically start creating polygon after setting GCS location
     
 
     

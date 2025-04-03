@@ -49,6 +49,8 @@ def detect_and_draw(image_path):
     image = cv2.imread(image_path)
     results = model(image)
 
+    detections = []
+
     for result in results:
         for box in result.boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -61,11 +63,14 @@ def detect_and_draw(image_path):
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             label = f"{label_name}: {confidence:.2f}"
             cv2.putText(image, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            detections.append({
+                "bbox": (x1, y1, x2, y2),
+                "class": label_name,
+                "confidence": confidence
+            })
 
     # Show image
-    cv2.imshow("Detections", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    return image, detections
 
 # Call function
-detect_and_draw(image_path)
+#detect_and_draw(image_path)

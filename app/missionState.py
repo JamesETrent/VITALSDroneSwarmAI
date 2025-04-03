@@ -1,4 +1,5 @@
 import os
+import random
 from GUI import GUI
 from Dispatcher import Dispatcher
 import asyncio
@@ -10,6 +11,8 @@ from LangGraph import langChainMain
 import concurrent.futures
 from Utils import coordinate_estimation
 import heapq
+from ComputerVision import objectDetection
+import cv2
 
 class Drone:
     drone_id = None
@@ -22,17 +25,23 @@ class Drone:
     vx = None # cm per second
     vy = None # cm per second
     vz = None # cm per second
+    roll = None  # Roll angle in degrees
+    pitch = None  # Pitch angle in degrees
+    yaw = None  # Yaw angle in degrees
     home_latitude = None # Note: this is not a float, it is a int with 7 decimal places
     home_longitude = None # Note: this is not a float, it is a int with 7 decimal places
     jobQueue = None
     active_job = None
     last_mission_state = None
     available = True
+    operatingAltitude = 10 # meters
+    visionModel = "rf3v1.pt"
 
-    def __init__(self, missionState, drone_id, system_status):
+    def __init__(self, missionState, drone_id, system_status, operatingAltitude):
         self.missionState = missionState
         self.drone_id = drone_id
         self.system_status = system_status
+        self.operatingAltitude = operatingAltitude
         self.jobQueue = jobPriorityQueue()
         
 
@@ -145,6 +154,10 @@ class Drone:
         if not self.jobQueue.is_empty():
             next_job = self.jobQueue.get_next_job()
             self.setActiveJob(next_job)
+    
+    def set_operatingAltitude(self, altitude):
+        self.operatingAltitude = altitude
+
         
 
 
@@ -152,6 +165,9 @@ class Drone:
     #GETTERS
     def get_home(self):
         return (self.home_latitude, self.home_longitude, )
+    
+    def get_operatingAltitude(self):
+        return self.operatingAltitude
     
 class Job:
     def __init__(self, job_type, job_status, waypoints, missionState, job_priority):
@@ -208,6 +224,8 @@ class missionState:
     def __init__(self, gui):
         self.drones = []
         self.pois = []
+        self.gcs_location = None  # Global Control Station location (latitude, longitude)
+        
         self.missionPolygon = None
         self.mavLinkConnected = False
         self.gui = gui
@@ -218,6 +236,9 @@ class missionState:
         self.mission_waypoints = [(28.6013158, -81.2020057, 10, 0 ), (28.6031200, -81.1993369, 10, 0) , (28.6004825, -81.1942729, 10, 0)]
         self.mission_waypoints2  = [(28.6000236, -81.1988032, 10, 2)]
         self.mission_waypoints3 = [(28.5991587, -81.1985403, 10, 0 ), (28.6014194, -81.2027675, 10, 0)]
+
+        #for simulation purposes
+        self.detectionPoints = []
         
         
     def connect_to_mavlink(self):
@@ -227,9 +248,11 @@ class missionState:
             self.dispatcherThread.start()
             self.mavLinkConnected = True
             print("Connected to MAVLink")
+            return True
         else:
             print("Failed to connect to MAVLink")
             self.mavLinkConnected = False
+            return False
 
     
     def run_asyncio_loop(self):
@@ -238,7 +261,7 @@ class missionState:
         self.loop.run_until_complete(self.dispatcher.receive_packets())
 
     def addDrone(self, drone_id, system_status):
-        self.drones.append(Drone(self, drone_id, system_status))
+        self.drones.append(Drone(self, drone_id, system_status, 10 + (5 * len(self.drones))))
         self.drones.sort(key=lambda x: x.drone_id)
         self.gui.addDrone(drone_id, system_status)
 
@@ -246,6 +269,20 @@ class missionState:
         drone = next((d for d in self.drones if d.drone_id == drone_id), None)
         if drone is not None:
             drone.updatePosition(latitude, longitude, altitude, relative_altitude, heading, vx, vy, vz)
+            #check if drone is within 20 meters of the target detection points
+            if self.detectionPoints:
+                for point in self.detectionPoints:
+                    distance = coordinate_estimation.calculate_distance_between_points(
+                        latitude / 1e7, longitude / 1e7,
+                        point["lat"], point["lon"]
+                    )
+                    if distance < 20:  # If within 20 meters and the flag is less than 3
+                        print(f"Drone {drone_id} is within 20 meters of detection point {point['lat']}, {point['lon']} num_hits: {point['num_hits']} roll: {drone.roll}")
+                        if point["num_hits"] < 1 or (point["num_hits"] <= 3 and abs(drone.roll) > 0.1):  # If the flag is less than 1 or if the drone is pitching significantly
+                            point["num_hits"] += 1  # Increment the flag for this detection point
+                            self.trigger_image_detection(drone_id)
+                        
+
 
     def updateDroneTelemetry(self, drone_id, roll, pitch, yaw):
         drone = next((d for d in self.drones if d.drone_id == drone_id), None)
@@ -282,19 +319,18 @@ class missionState:
         for drone in self.drones:
             drone_positions.append((drone.longitude/1e7, drone.latitude/1e7))
         self.drone_search_destinations = search_grid_with_drones(self.missionGrid,drone_positions,self.viable_grid_positions,4)
-        self.deployInitialPaths()
-
         pass
 
     def deployInitialPaths(self):
         for i, drone in enumerate(self.drones):
             converted_waypoints = []
             for j, coord in enumerate(self.drone_search_destinations[i]):
-                converted_waypoints.append((coord.y, coord.x, 10, 0))
+                converted_waypoints.append((coord.y, coord.x, drone.operatingAltitude, 0))
             self.create_job("Initial Search", converted_waypoints, 1, drone.drone_id)
 
 
-    
+    def startSearchMission(self):
+        self.deployInitialPaths()
 
 
 
@@ -415,7 +451,7 @@ class missionState:
         if poi is not None:
             drone = next((d for d in self.drones if d.drone_id == int(drone_id)), None)
             if drone is not None:
-                job = Job(f"Investigate POI {poi.id} ", "pending", [(poi.lat, poi.lon, 10, 2)], self, priority)
+                job = Job(f"Investigate POI {poi.id} ", "pending", [(poi.lat, poi.lon, int(drone.operatingAltitude), 2)], self, priority)
                 drone.addJob(job)
     
     def call_drone_home(self, drone_id):
@@ -434,6 +470,11 @@ class missionState:
     def get_missionID(self):
         return self.missionID
     
+    def trigger_image_detection(self, drone_id):
+        random_img_id = random.randint(1,5)
+        image_path = f"ComputerVision/temp/drone_testing{random_img_id}.jpg"  # Simulated image path for testing
+        self.handle_image_detection(drone_id, image_path)
+    
     def handle_image_detection(self, drone_id, image_path):
         # Run the LLM in a separate thread to prevent UI freezing
         def process_image():
@@ -444,43 +485,92 @@ class missionState:
             future = executor.submit(process_image)
             description = future.result()  # Wait for the result in a non-blocking way
 
-        # Now process the estimated position
-        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
-        if drone is None:
+        image, detections = objectDetection.detect_and_draw(image_path)
+        if detections is None or len(detections) == 0:
+            print("No objects detected in the image.")
             return
-        
-        estimated_lat, estimated_lon = coordinate_estimation.estimate_position( 
-            drone.latitude / 1e7, 
-            drone.longitude / 1e7, 
-            drone.altitude / 1000, 
-            -10, 
-            0, 
-            90,  # Assuming a FOV of 90 degrees for simplicity
-            960,  # x coordinate in the image (center)
-            540,  # y coordinate in the image (center)
-            drone.heading,
-            image_width=1920,
-            image_height=1080
-        )
-
-        # Check if the detected POI already exists within 20 meters
-        for poi in self.pois:
-            if coordinate_estimation.calculate_distance_between_points(estimated_lat, estimated_lon, poi.lat, poi.lon) < 20:
-                os.makedirs(f"Missions/{self.missionID}/POIs/{poi.id}", exist_ok=True)
-                os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi.id}/{os.path.basename(image_path)}")
-                poi.positive_flags += 1
-                if poi.positive_flags >= 3 and not poi.poi_target_at_location:
-                    poi.poi_target_at_location = True
-                    
+        else:
+            # Now process the estimated position
+            drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+            if drone is None:
                 return
+            
+            
+            
+            estimated_lat, estimated_lon = coordinate_estimation.estimate_position( 
+                drone.latitude / 1e7, 
+                drone.longitude / 1e7, 
+                drone.altitude / 1000, 
+                -10, 
+                0, 
+                90,  # Assuming a FOV of 90 degrees for simplicity
+                960,  # x coordinate in the image (center)
+                540,  # y coordinate in the image (center)
+                drone.heading,
+                image_width=1920,
+                image_height=1080
+            )
 
-        # If no existing POI, create a new one
-        poi_id = self.gui.map_page.add_poi(estimated_lat, estimated_lon, "Detected POI", description)
-        self.create_poi_investigate_job(poi_id, drone_id, 5)
+            # Check if the detected POI already exists within 20 meters
+            for poi in self.pois:
+                if coordinate_estimation.calculate_distance_between_points(estimated_lat, estimated_lon, poi.lat, poi.lon) < 40:
+                    os.makedirs(f"Missions/{self.missionID}/POIs/{poi.id}", exist_ok=True)
+                    cv2.imwrite(f"Missions/{self.missionID}/POIs/{poi.id}/{os.path.basename(image_path)}", image)
+                    poi.positive_flags += 1
+                    if poi.positive_flags >= 3:
+                        poi.target_found(drone_id)  # Mark the POI as found if it has enough positive flags
+                        
+                    return
 
-        # Store image in POI directory
-        os.makedirs(f"Missions/{self.missionID}/POIs/{poi_id}", exist_ok=True)
-        os.rename(image_path, f"Missions/{self.missionID}/POIs/{poi_id}/{os.path.basename(image_path)}")
+            # If no existing POI, create a new one
+            poi_id = self.gui.map_page.add_poi(estimated_lat, estimated_lon, "Detected POI", description)
+            self.create_poi_investigate_job(poi_id, drone_id, 5)
+
+            # Store image in POI directory
+            os.makedirs(f"Missions/{self.missionID}/POIs/{poi_id}", exist_ok=True)
+            cv2.imwrite(f"Missions/{self.missionID}/POIs/{poi_id}/{os.path.basename(image_path)}", image)
+    
+    def set_gcs_location(self, coordinates_tuple):
+        self.gcs_location = coordinates_tuple
+
+    def setDetectionPoints(self, points):
+        self.detectionPoints = points
+
+    def  get_drone_operatingAltitude(self, drone_id):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            return drone.get_operatingAltitude()
+        else:
+            return None
+    
+    def  set_drone_operatingAltitude(self, drone_id, altitude):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            drone.set_operatingAltitude(altitude)
+            self.gui.updateDroneOperatingAltitude(drone_id, altitude)
+        else:
+            return None
+    
+    def get_drone_vision_model(self, drone_id):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            return drone.visionModel
+        else:
+            return None
+    def set_drone_vision_model(self, drone_id, model):
+        drone = next((d for d in self.drones if d.drone_id == drone_id), None)
+        if drone is not None:
+            drone.visionModel = model
+            self.gui.updateDroneVisionModel(drone_id, model)
+        else:
+            return None
+    def remove_poi_investigate_job(self, droneID):
+        drone = next((d for d in self.drones if d.drone_id == droneID), None)
+        if drone is not None and drone.active_job is not None:
+            if drone.active_job.job_type.startswith("Investigate POI"):
+                print(f"Removing job {drone.active_job.job_id} for drone {droneID}")
+                drone.setJobComplete()
+        
         
 
 if __name__ == "__main__":
