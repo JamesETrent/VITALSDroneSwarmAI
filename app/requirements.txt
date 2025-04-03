@@ -9,3 +9,4 @@ geoalchemy2
 opencv-python
 ultralytics
 numpy
+cv2

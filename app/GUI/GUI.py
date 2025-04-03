@@ -373,7 +373,6 @@ class ChatSidebar(customtkinter.CTkFrame):
 
         # Bind mousewheel scrolling
         self.chat_canvas.bind("<Configure>", self.on_canvas_configure)
-        self.chat_canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
 
     def _load_icon(self, path):
         """Load and resize an icon."""
@@ -385,9 +384,6 @@ class ChatSidebar(customtkinter.CTkFrame):
         """Update the scroll region when new messages are added."""
         self.chat_canvas.configure(scrollregion=self.chat_canvas.bbox("all"))
 
-    def on_mouse_wheel(self, event):
-        """Allow scrolling with the mouse wheel."""
-        self.chat_canvas.yview_scroll(-1 * (event.delta // 120), "units")
 
     def add_message_bubble(self, text, sender="user"):
         """Create and add a message bubble to the chat."""
