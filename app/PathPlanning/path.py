@@ -69,6 +69,6 @@ def search_grid_with_drones(grid, drone_positions = None, viable_grid_positions 
             
             print(f"Drone {drone_id+1} completed its search.")"
     """
-    for drone_id in range(len(drone_positions)):
-        print(f"Drone ID: {drone_id}, Locations: {precomp_destinations[drone_id]}")
+    #for drone_id in range(len(drone_positions)):
+    #    print(f"Drone ID: {drone_id}, Locations: {precomp_destinations[drone_id]}")
     return precomp_destinations

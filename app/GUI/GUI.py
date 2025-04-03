@@ -49,7 +49,9 @@ class Drone:
             case _:
                 self.color = "gray"
 
-    
+    """
+        Okay, so this is the one that displays the drone's positions. 
+    """
     def setPosition(self, lat, lon, altitude, relative_altitude, heading, vx, vy, vz):
         #convert lat and lon from 7 decimal int to float
         converted_lat = lat / 10000000
