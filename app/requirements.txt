@@ -1,4 +1,4 @@
-mavutil
+pymavlink
 ollama
 tkintermapview
 customtkinter
@@ -9,4 +9,4 @@ geoalchemy2
 opencv-python
 ultralytics
 numpy
-opencv-python
+
