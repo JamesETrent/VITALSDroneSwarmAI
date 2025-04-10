@@ -5,7 +5,7 @@ from ultralytics import YOLO
 
 # Load your trained YOLO model
   # Replace with your model path
-model = YOLO("./CVModels/rf3v1.pt")
+model = YOLO("./ComputerVision/CVModels/rf3v1.pt")
 
 
 custom_labels = model.names  # This pulls the correct labels from the model

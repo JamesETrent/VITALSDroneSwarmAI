@@ -13,6 +13,11 @@ Install necessary dependencys
   $ pip install -r requirements.txt
 ```
 
+## Ollama 
+Open Windows command prompt
+ollama pull llama3.2
+ollama pull llava
+
 ##  Configure Mission Planner
     
 This software runs from mirrored mavlink packets through mission planner.
