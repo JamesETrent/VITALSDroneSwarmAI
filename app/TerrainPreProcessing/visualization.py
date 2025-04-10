@@ -114,11 +114,11 @@ class Drone_Path_Navigator:
         self.button.on_clicked(toggle_path)
         
         
-        self.start_textbox_ax = plt.axes([rect[0]+0.055,rect[1]-0.025,0.025,0.025])
+        self.start_textbox_ax = plt.axes([rect[0]+0.075,rect[1]-0.025,0.025,0.025])
         self.start_textbox = TextBox(self.start_textbox_ax, 'Start (1 to {}):'.format(len(path)), initial=str(len(path)))
         self.start_textbox.on_submit(self.set_start_index)
 
-        self.end_textbox_ax = plt.axes([rect[0]+0.05,rect[1]-0.05,0.025,0.025])
+        self.end_textbox_ax = plt.axes([rect[0]+0.075,rect[1]-0.05,0.025,0.025])
         self.end_textbox = TextBox(self.end_textbox_ax, 'End (1 to {}):'.format(len(path)), initial=str(len(path)))
         self.end_textbox.on_submit(self.set_end_index)
 
@@ -250,8 +250,9 @@ class Interactive_Visualization:
                     current_components.append(p)
                 #current_components
         self.create_layer("grid",current_components)
-        #annotation_text = f"Tile Length: {self.tile_length:.2f} meters"
-        #grid_ax.annotate(annotation_text, xy=(0.05, 0.95), xycoords='axes fraction', 
+        annotation_text = f"Tile Length: {self.tile_length:.2f} meters"
+        grid_ax.set_title(f"Tile Length: {self.tile_length:.2f} meters", fontsize=10, fontweight='bold', color='black')
+        #grid_ax.annotate(annotation_text, xy=(0.1, 0.95), xycoords='figure fraction', 
         #    ha='left', va='top', fontsize=10, color='black', 
         #    fontweight='bold', bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
     
@@ -428,7 +429,7 @@ class Interactive_Visualization:
         
         #WARNING: If the buttons come out of scope, you will lose access to it, which is not good!. 
         #plt.show needs to be in here. 
-        plt.show(block = False)
+        plt.show()
         return None
 
 
@@ -875,7 +876,7 @@ def plot_search_area2(rtree_index, grid, polygon_points):
         lat_values = [point[1] for point in polygon_points]  # Extract latitudes
         plt.xticks(ticks=np.linspace(min(lon_values), max(lon_values), num=5), labels=np.round(np.linspace(min(lon_values), max(lon_values), num=5), 6))
         plt.yticks(ticks=np.linspace(min(lat_values), max(lat_values), num=5), labels=np.round(np.linspace(min(lat_values), max(lat_values), num=5), 6))
-       # plt.ticklabel_format(useOffset=False, style='plain')
+        # plt.ticklabel_format(useOffset=False, style='plain')
         # Set the axis limits based on the bounding box of the polygon
         # Show the plot
         plt.show()
