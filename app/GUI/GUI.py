@@ -9,6 +9,7 @@ import ast
 import math
 from LangGraph import langChainMain
 from concurrent.futures import ThreadPoolExecutor
+from TerrainPreProcessing.check_internet import has_internet
 
 
 class Drone:
@@ -731,9 +732,11 @@ class MapPage(customtkinter.CTkFrame):
         )
 
         #Use this for offline demonstrations. 
-        #self.map_widget.set_tile_server("http://localhost:8080/tile/{z}/{x}/{y}.png")
+        if not has_internet():
+            self.map_widget.set_tile_server("http://localhost:8080/tile/{z}/{x}/{y}.png")
         self.map_widget.pack(fill="both", expand=False, padx=20, pady=20)
-        self.map_widget.set_position(28.6026251, -81.1999887)
+        #UCF Position: 28.6026251, -81.1999887
+        self.map_widget.set_position(28.5477810,-80.8481593)
         self.map_widget.add_left_click_map_command(self.left_click_event)
 
         #bottom frame

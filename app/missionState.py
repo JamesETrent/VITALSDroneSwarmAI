@@ -303,7 +303,7 @@ class missionState:
         #polygon = tuple(polygon)
         #print(f"Check area: {type(polygon[0][0])}") 
         
-        rtree, grid, viable_grid_positions = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
+        rtree, grid, viable_grid_positions = create_search_area(polygon_points=polygon, search_tags={"building":True,"water":True,"highway":True}, useOSMX=True, maximum_square_size=60,minimum_grid_size=8)
         #plot_advanced(rtree,grid, polygon, {"building": (169,169,169,1), "water":(15, 10, 222,1)})
         #plot_postGIS_data(rtree, grid, polygon, {"building": (1, 0, 0, 1.0), "water":(0.0, 0.0, 1.0, 1.0), "highway":{"highway":(1, 0, 0, 1),"pedestrian_path":(0, 0, 1, 1)}}, show_grid=True,polygon_darkening_factor=0)
         self.missionGrid = grid
@@ -319,8 +319,8 @@ class missionState:
                 "building": (1, 0, 0, 1.0),
                 "water": (0.0, 0.0, 1.0, 1.0),
                 "highway": {
-                    "highway": (1, 0, 0, 1),
-                    "pedestrian_path": (0, 0, 1, 1)
+                    "highway": (1.0, 0.65, 0.0, 1.0),
+                    "pedestrian_path": (0.4, 0.8, 0.4, 1.0)
                 }
             }),
             kwargs={

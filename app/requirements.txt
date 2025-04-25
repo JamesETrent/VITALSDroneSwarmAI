@@ -10,3 +10,4 @@ opencv-python
 ultralytics
 numpy
 rtree
+psycopg2

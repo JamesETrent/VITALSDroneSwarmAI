@@ -10,7 +10,7 @@ from matplotlib.ticker import MaxNLocator
 import matplotlib.pyplot as plt, collections
 import matplotlib.ticker as mticker
 from collections import Counter
-from matplotlib.collections import LineCollection
+from matplotlib.collections import PatchCollection, LineCollection
 from matplotlib.widgets import Button, TextBox
 import matplotlib.colors as mcolors
 import matplotlib.patches as patches
@@ -107,8 +107,6 @@ class Drone_Path_Navigator:
             #self.ax.get_figure().canvas.draw()
             for component in self.personal_components:
                 component.set_visible(self.interactive.layer_visible[self.layer_name])
-
-            print("Hello, doing anythign?")
             plt.draw()
 
         self.button.on_clicked(toggle_path)
@@ -189,13 +187,13 @@ class Interactive_Visualization:
                     if isinstance(value_color, dict):
                         actual_values = tile.contains[key]
                         value_counts = Counter(actual_values)  # Count occurrences of each value_type
-                        print(f"Hello?: {actual_values}")
+                        #print(f"Hello?: {actual_values}")
                         for value_type, ct in value_counts.items():
                             value_type = disambiguate(key, value_type)  # Normalize value type
                             if value_type in value_color:
-                                print(f"Key: {key} Value Type: {value_type}, Count: {ct}")
-                                print(f"Value Color: {value_color}")
-                                print(f"Actually used the color: {value_color.get(value_type)}")
+                                #print(f"Key: {key} Value Type: {value_type}, Count: {ct}")
+                                #print(f"Value Color: {value_color}")
+                                #print(f"Actually used the color: {value_color.get(value_type)}")
 
                                 present_colors.append(np.array(value_color.get(value_type)))
                                 weights.append(ct)  # Assign the count as the weight
@@ -275,7 +273,6 @@ class Interactive_Visualization:
             for component in self.layer_components[layer_name]:
                 component.set_visible(self.layer_visible[layer_name])
             plt.draw()
-            print("Hello, doing anythign?")
 
         button_ax = plt.axes(rect)
         button_ax.set_zorder(100)
@@ -320,10 +317,10 @@ class Interactive_Visualization:
                     value_color = colors.get(key)
                     if isinstance(value_color, dict):
                         #Need to disambiguite for some keys, since 
-                        print(f"Key: {key}, Previous Value: {value}")
+                        #print(f"Key: {key}, Previous Value: {value}")
                         value = disambiguate(key, value)
                         if value in value_color:
-                            print(f"Value: {value}, Color: {value_color[value]}")
+                            #print(f"Value: {value}, Color: {value_color[value]}")
                             present_colors.append(np.array(value_color[value]))
                     else:
                         present_colors.append(np.array(value_color))
@@ -357,7 +354,10 @@ class Interactive_Visualization:
 
         
         # Create a new list to store the cloned patches
-        patch_collections = [child for child in ax.get_children() if isinstance(child,col.PatchCollection)]
+        patch_collections = [
+            child for child in ax.get_children()
+            if isinstance(child, (PatchCollection, LineCollection))
+        ]
         self.create_layer("geometry", patch_collections)
 
         ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:.3f}"))
@@ -713,7 +713,6 @@ def plot_postGIS_data(rtree_index, grid = None, search_points = [], colors = {},
         layer_ax.set_visible(not current_visibility)
         button.color = "green" if layer_ax.get_visible() else "red"
         fig.canvas.draw()
-        print("Hello, doing anythign?")
 
     #toggle_button.on_clicked(toggle_grid_visibility)
     button_storage = []

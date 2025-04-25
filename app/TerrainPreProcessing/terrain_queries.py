@@ -2,25 +2,20 @@ from .geometry_utils import find_extreme_coordinates, rectangle_side_lengths, ad
 from .osmnx_handler import osmnx_load_rtree
 from .postgis_handler import query_osm_features, postgis_load_rtree,query_osm_features_all
 from .visualization import plot_postGIS_data, plot_search_area
+from .check_internet import has_internet
 from rtree import index
 from shapely import Polygon
 import osmnx as ox
-import socket
 import pandas as pd
 
-def has_internet():
-    try:
-        socket.create_connection(("8.8.8.8", 53), timeout=3)
-        return True
-    except OSError:
-        return False
+
     
 def get_features(rtree_index, useOSMNX: bool, osmnx_points, postGIS_points, search_tags):
 
     if useOSMNX:
         print("Getting information from OSMNX")
         if not has_internet():
-            #useOSMNX = False
+            useOSMNX = False
             print("No Internet! Attempting to use PostGIS database")
 
         if useOSMNX:

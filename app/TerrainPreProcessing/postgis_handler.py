@@ -17,7 +17,7 @@ from sqlalchemy import create_engine, MetaData, Table, select
 from geoalchemy2.shape import to_shape
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.exc import OperationalError
-from shapely.geometry import Point, Polygon, MultiPolygon
+from shapely.geometry import Point, Polygon, MultiPolygon, LineString
 from pyproj import Transformer
 
 
@@ -46,9 +46,11 @@ def transform_geometry_3857_to_4326(geometry):
             for polygon in geometry.geoms
         ]
         return MultiPolygon(transformed_polygons)
-
+    elif isinstance(geometry, LineString):
+        transformed_coords = [transformer.transform(x, y) for x, y in geometry.coords]
+        return LineString(transformed_coords)
     else:
-        raise TypeError("Input geometry must be a Point, Polygon, or MultiPolygon")
+        raise TypeError(f"Input geometry must be a Point, Polygon, or MultiPolygon, got: {type(geometry)}")
 
 
 
